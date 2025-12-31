@@ -1,0 +1,3 @@
+/home/alonn/projects/ALO-project/ALO-COMPILER/build/CMakeFiles/ALO-COMPILER.dir
+/home/alonn/projects/ALO-project/ALO-COMPILER/build/CMakeFiles/edit_cache.dir
+/home/alonn/projects/ALO-project/ALO-COMPILER/build/CMakeFiles/rebuild_cache.dir

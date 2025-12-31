@@ -1,0 +1,8 @@
+[
+{
+  "directory": "/home/alonn/projects/ALO-project/ALO-COMPILER/build",
+  "command": "/usr/bin/c++  -I/home/alonn/projects/ALO-project/ALO-COMPILER/include -g -std=gnu++17 -o CMakeFiles/ALO-COMPILER.dir/src/main.cpp.o -c /home/alonn/projects/ALO-project/ALO-COMPILER/src/main.cpp",
+  "file": "/home/alonn/projects/ALO-project/ALO-COMPILER/src/main.cpp",
+  "output": "CMakeFiles/ALO-COMPILER.dir/src/main.cpp.o"
+}
+]
