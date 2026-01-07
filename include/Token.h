@@ -43,17 +43,12 @@ enum class TokenType
 
 };
 
-class Token
+typedef struct Token
 {
-public:
-    Token(TokenType type, const std::string &lexeme, int line, int column);
-    ~Token();
-
-private:
     TokenType m_type;
     std::string m_lexeme;
     int m_line;           // Line number where token starts (for errors)
-    int m_column;         // Column number where token starts (for errors)
+    int m_column;  
 };
 
 #endif
