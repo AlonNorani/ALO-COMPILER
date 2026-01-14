@@ -1,6 +1,7 @@
 #ifndef TOKEN_H
 #define TOKEN_H
 #include <string>
+#include <unordered_map>
 //enum of all tokens
 enum class TokenType
 {
@@ -42,13 +43,45 @@ enum class TokenType
 
 
 };
+const std::string operators = "+-*/=<>!&|"; // set of operator characters
+const std::string delimiters = "();,{}[]"; // set of delimiter characters
 
-typedef struct Token
+static std::unordered_map<std::string, TokenType> keywords = {
+    {"let", TokenType::LET},
+    {"fn", TokenType::FN},
+    {"if", TokenType::IF},
+    {"else", TokenType::ELSE},
+    {"return", TokenType::RETURN}
+};
+static std::unordered_map<char, TokenType> singleCharOperatorTokens = {
+    {'+', TokenType::PLUS},
+    {'-', TokenType::MINUS},
+    {'*', TokenType::STAR},
+    {'/', TokenType::SLASH},
+    {'=', TokenType::EQUAL},
+    {'<', TokenType::LESS},
+    {'>', TokenType::GREATER}
+};
+static std::unordered_map<std::string, TokenType> doubleCharOperatorTokens = {
+    {"==", TokenType::DOUBLE_EQUAL},
+    {"!=", TokenType::NOT_EQUAL},
+    {"<=", TokenType::LESS_EQUAL},
+    {">=", TokenType::GREATER_EQUAL}
+};
+static std::unordered_map<char, TokenType> delimiterTokens = {
+    {'(', TokenType::LPAREN},
+    {')', TokenType::RPAREN},
+    {'{', TokenType::LBRACE},
+    {'}', TokenType::RBRACE},
+    {';', TokenType::SEMICOLON},
+    {',', TokenType::COMMA}
+};
+struct Token
 {
-    TokenType m_type;
-    std::string m_lexeme;
-    int m_line;           // Line number where token starts (for errors)
-    int m_column;  
+    TokenType type;
+    std::string lexeme;
+    int line;           // Line number where token starts (for errors)
+    int column;  
 };
 
 #endif

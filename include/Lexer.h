@@ -26,7 +26,7 @@ private:
     Token lexNumber();
     Token lexIdentifierOrKeyword();
     Token lexString();
-    Token lexOperatorOrDelimiter();
+    Token lexOperatorOrDelimiter(const bool isDelimiter = false);
 
 };
 
