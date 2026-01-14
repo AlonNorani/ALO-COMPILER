@@ -124,14 +124,23 @@ Token Lexer::lexIdentifierOrKeyword()
             keywordIt->second,
             value,
             startLine,
-            startColumn
+            startColumn,
+        };
+    }
+    auto dataTypeIt = dataTypeKeywords.find(value);
+    if (dataTypeIt != dataTypeKeywords.end()) {
+        return Token{
+            dataTypeIt->second,
+            value,
+            startLine,
+            startColumn,
         };
     }
     return Token{
         TokenType::IDENTIFIER, // not a keyword, so it's an identifier for example variable name
         value,
         startLine,
-        startColumn
+        startColumn,
     };
 }
 
@@ -213,6 +222,7 @@ Token Lexer::lexOperatorOrDelimiter(const bool isDelimiter)
             case '}': type = TokenType::RBRACE; break;
             case ';': type = TokenType::SEMICOLON; break;
             case ',': type = TokenType::COMMA; break;
+            case ':': type = TokenType::COLON; break;
             default: type = TokenType::INVALID_TOKEN; break;
         }
         return Token{

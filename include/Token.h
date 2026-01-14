@@ -5,6 +5,12 @@
 //enum of all tokens
 enum class TokenType
 {
+    // general Types
+    INT, 
+    FLOAT,
+    STRING_TYPE,
+    BOOL,
+    VOID,
     // special tokens
     EOF_TOKEN,
     INVALID_TOKEN,
@@ -39,13 +45,20 @@ enum class TokenType
     LBRACE,           
     RBRACE,          
     SEMICOLON,        
-    COMMA,            
+    COMMA, 
+    COLON,           
 
 
 };
 const std::string operators = "+-*/=<>!&|"; // set of operator characters
-const std::string delimiters = "();,{}[]"; // set of delimiter characters
-
+const std::string delimiters = "();,{}[]:"; // set of delimiter characters
+const std::unordered_map<std::string, TokenType> dataTypeKeywords = {
+    {"int", TokenType::INT},
+    {"float", TokenType::FLOAT},
+    {"string", TokenType::STRING_TYPE},
+    {"bool", TokenType::BOOL},
+    {"void", TokenType::VOID}
+};
 static std::unordered_map<std::string, TokenType> keywords = {
     {"let", TokenType::LET},
     {"fn", TokenType::FN},
