@@ -1,12 +1,32 @@
-.vscode/*
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
+# --- VS Code ---
+.vscode/
 *.code-workspace
-
-# Local History for Visual Studio Code
 .history/
 
+# --- C++ & CMake (CRITICAL) ---
+# Ignore the entire build directory (where the magic happens)
+build/
+bin/
+out/
 
-# End of https://mrkandreev.name/snippets/gitignore-generator/#VisualStudioCode,cpp
+# Ignore compiled files (in case you compile in root)
+*.o
+*.obj
+*.out
+*.exe
+*.so
+*.a
+*.lib
+
+# Ignore CMake artifacts (if they leak out of build/)
+CMakeCache.txt
+CMakeFiles/
+CMakeScripts/
+cmake_install.cmake
+Makefile
+install_manifest.txt
+compile_commands.json
+
+# --- OS Specific ---
+.DS_Store
+Thumbs.db
