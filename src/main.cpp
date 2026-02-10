@@ -56,7 +56,7 @@ int main(int argc, char* argv[])
         std::string source = readFile(argv[1]);
 
         // Uncomment when you want lexer debugging
-        // checkLexer(source);
+        checkLexer(source);
 
         checkParser(source);
     }

@@ -1,7 +1,9 @@
 #ifndef LEXER_H
 #define LEXER_H
 #include <string>
+#include <iostream>
 #include "Token.h"
+
 class Lexer
 {
 public:

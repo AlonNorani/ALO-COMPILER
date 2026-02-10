@@ -27,7 +27,6 @@ Token Lexer::getNextToken()
     else if(currChar == '"') {
         return lexString();
     }
-
     // Placeholder for unrecognized characters
     Token invalidToken;
     invalidToken.type = TokenType::INVALID_TOKEN;
@@ -173,47 +172,38 @@ Token Lexer::lexString()
     }
 }
 
-Token Lexer::lexOperatorOrDelimiter(const bool isDelimiter)
+Token Lexer::lexOperatorOrDelimiter(bool isDelimiter)
 {
-    /*
-    Lexes operators and delimiters from the source code.
-    If isDelimiter is true, it treats the current character as a delimiter.
-    Otherwise, it treats it as an operator.
-    if the next character forms a valid double character operator, it lexes that instead.
-    else, it lexes a single character operator or delimiter.
-    */
     int startLine = m_line;
     int startColumn = m_column;
+
     char currChar = currentChar();
+    if (currChar == '\0') {
+        return Token{TokenType::EOF_TOKEN, "", startLine, startColumn};
+    }
+
     std::string value;
     value += currChar;
-    advance();
-    if(operators.find(currentChar()) != std::string::npos && !isDelimiter) { // may be double character operator
-        // check for double character operators
-        char nextChar = currentChar();
+
+    if (!isDelimiter) { // operator
+        // Check for double-character operator
+        char nextChar = peekChar();
         std::string doubleCharOp = value + nextChar;
         auto doubleIt = doubleCharOperatorTokens.find(doubleCharOp);
         if (doubleIt != doubleCharOperatorTokens.end()) {
-            advance();
-            return Token{
-                doubleIt->second,
-                doubleCharOp,
-                startLine,
-                startColumn
-            };
+            advance(); // consume first char
+            advance(); // consume second char
+            return Token{doubleIt->second, doubleCharOp, startLine, startColumn};
         }
-        // single character operator
+
+        // Single-character operator
         auto singleIt = singleCharOperatorTokens.find(currChar);
         if (singleIt != singleCharOperatorTokens.end()) {
-            return Token{
-                singleIt->second,
-                value,
-                startLine,
-                startColumn
-            };
+            advance(); // consume operator
+            return Token{singleIt->second, value, startLine, startColumn};
         }
-    } else if(delimiters.find(currChar) != std::string::npos && isDelimiter) {
-        // delimiters
+    } 
+    else { // delimiter
         TokenType type;
         switch (currChar) {
             case '(': type = TokenType::LPAREN; break;
@@ -225,19 +215,11 @@ Token Lexer::lexOperatorOrDelimiter(const bool isDelimiter)
             case ':': type = TokenType::COLON; break;
             default: type = TokenType::INVALID_TOKEN; break;
         }
-        return Token{
-            type,
-            value,
-            startLine,
-            startColumn
-        };
+        advance(); // consume delimiter
+        return Token{type, value, startLine, startColumn};
     }
+
     // If we reach here, it's an invalid operator/delimiter
-    return Token{
-        TokenType::INVALID_TOKEN,
-        value,
-        startLine,
-        startColumn
-    };
-    
+    advance(); // consume the invalid char to avoid infinite loop
+    return Token{TokenType::INVALID_TOKEN, value, startLine, startColumn};
 }

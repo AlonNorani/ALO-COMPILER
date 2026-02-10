@@ -21,6 +21,7 @@ private:
     // parse functions for different grammar rules
     void parseStatement();
     void parseExpression();
+    void parseTerm();
 
 
 
