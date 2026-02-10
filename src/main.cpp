@@ -2,28 +2,27 @@
 #include <fstream>
 #include <sstream>
 #include <string>
-#include "../include/Lexer.h"
+#include "Lexer.h"
+#include "Parser.h"
 
-int main(int argc, char* argv[]) {
-    if (argc < 2) {
-        std::cerr << "Usage: " << argv[0] << " <source_file>" << std::endl;
-        return 1;
-    }
-
-    std::ifstream file(argv[1]);
+std::string readFile(const char* filename)
+{
+    std::ifstream file(filename);
     if (!file.is_open()) {
-        std::cerr << "Failed to open file: " << argv[1] << std::endl;
-        return 1;
+        throw std::runtime_error(std::string("Failed to open file: ") + filename);
     }
 
-    // Read entire file into a string
     std::stringstream buffer;
     buffer << file.rdbuf();
-    std::string source = buffer.str();
+    return buffer.str();
+}
 
+void checkLexer(const std::string& source)
+{
     Lexer lexer(source);
 
-    std::cout << "=== Tokens ===" << std::endl;
+    std::cout << "=== Lexer check ===" << std::endl;
+
     Token token;
     do {
         token = lexer.getNextToken();
@@ -32,6 +31,39 @@ int main(int argc, char* argv[]) {
                   << "' Line: " << token.line
                   << " Column: " << token.column << std::endl;
     } while (token.type != TokenType::EOF_TOKEN);
+
+    std::cout << std::endl;
+}
+
+void checkParser(const std::string& source)
+{
+    Lexer lexer(source);
+    Parser parser(lexer);
+
+    parser.parseProgram();
+
+    std::cout << "Parser check passed - no syntax errors" << std::endl;
+}
+
+int main(int argc, char* argv[])
+{
+    if (argc < 2) {
+        std::cerr << "Usage: " << argv[0] << " <source_file>" << std::endl;
+        return 1;
+    }
+
+    try {
+        std::string source = readFile(argv[1]);
+
+        // Uncomment when you want lexer debugging
+        // checkLexer(source);
+
+        checkParser(source);
+    }
+    catch (const std::exception& e) {
+        std::cerr << "Error: " << e.what() << std::endl;
+        return 1;
+    }
 
     return 0;
 }
