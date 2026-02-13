@@ -4,6 +4,7 @@
 #include <memory>
 #include <string>
 #include <iostream>
+#include <vector>
 
 // Base struct for all AST nodes
 struct ASTNode {
@@ -78,6 +79,63 @@ struct AssignmentNode : ASTNode {
     void print(int indent = 0) const override {
         std::cout << std::string(indent, ' ') << "Assignment: " << variableName << "\n";
         expression->print(indent + 2);
+    }
+};
+
+// block of statements node
+struct BlockNode : ASTNode {
+    std::vector<std::unique_ptr<ASTNode>> statements;
+
+    BlockNode(std::vector<std::unique_ptr<ASTNode>> stmts)
+        : statements(std::move(stmts)) {}
+    void print(int indent = 0) const override {
+        std::cout << std::string(indent, ' ') << "Block:\n";
+        for (const auto& stmt : statements)
+            stmt->print(indent + 2);
+    }
+};
+
+// if statement node
+struct IfNode : ASTNode {
+    std::unique_ptr<ASTNode> condition;
+    std::unique_ptr<BlockNode> thenBranch;
+    std::unique_ptr<BlockNode> elseBranch; // can be nullptr
+
+    IfNode(std::unique_ptr<ASTNode> cond,
+           std::unique_ptr<BlockNode> thenB,
+           std::unique_ptr<BlockNode> elseB = nullptr)
+        : condition(std::move(cond)),
+          thenBranch(std::move(thenB)),
+          elseBranch(std::move(elseB)) {}
+
+    void print(int indent = 0) const override {
+        std::cout << std::string(indent, ' ') << "If:\n";
+        std::cout << std::string(indent + 2, ' ') << "Condition:\n";
+        condition->print(indent + 4);
+        std::cout << std::string(indent + 2, ' ') << "Then:\n";
+        thenBranch->print(indent + 4);
+        if (elseBranch) {
+            std::cout << std::string(indent + 2, ' ') << "Else:\n";
+            elseBranch->print(indent + 4);
+        }
+    }
+};
+
+// While loop
+struct WhileNode : ASTNode {
+    std::unique_ptr<ASTNode> condition;
+    std::unique_ptr<BlockNode> body;
+
+    WhileNode(std::unique_ptr<ASTNode> cond,
+              std::unique_ptr<BlockNode> b)
+        : condition(std::move(cond)), body(std::move(b)) {}
+
+    void print(int indent = 0) const override {
+        std::cout << std::string(indent, ' ') << "While:\n";
+        std::cout << std::string(indent + 2, ' ') << "Condition:\n";
+        condition->print(indent + 4);
+        std::cout << std::string(indent + 2, ' ') << "Body:\n";
+        body->print(indent + 4);
     }
 };
 

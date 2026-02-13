@@ -46,7 +46,10 @@ enum class TokenType
     RBRACE,          
     SEMICOLON,        
     COMMA, 
-    COLON,           
+    COLON, 
+    // control flow
+    WHILE,
+    FOR,          
 
 
 };
@@ -64,7 +67,11 @@ static std::unordered_map<std::string, TokenType> keywords = {
     {"fn", TokenType::FN},
     {"if", TokenType::IF},
     {"else", TokenType::ELSE},
-    {"return", TokenType::RETURN}
+    {"return", TokenType::RETURN},
+    {"true", TokenType::TRUE},
+    {"false", TokenType::FALSE},
+    {"while", TokenType::WHILE},
+    {"for", TokenType::FOR}
 };
 static std::unordered_map<char, TokenType> singleCharOperatorTokens = {
     {'+', TokenType::PLUS},

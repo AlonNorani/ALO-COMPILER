@@ -26,6 +26,13 @@ private:
     std::unique_ptr<ASTNode> parseExpression();
     std::unique_ptr<ASTNode> parseTerm();
     std::unique_ptr<ASTNode> parseFactor();
+    // assignments and variable declarations
+    std::unique_ptr<ASTNode> parseAssignment();
+    // parse blcoks and control flow statements
+    std::unique_ptr<BlockNode> parseBlock();       
+    std::unique_ptr<IfNode> parseIfStatement();  
+    std::unique_ptr<WhileNode> parseWhileStatement(); 
+
 
 
 
