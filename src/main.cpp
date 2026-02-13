@@ -40,9 +40,13 @@ void checkParser(const std::string& source)
     Lexer lexer(source);
     Parser parser(lexer);
 
-    parser.parseProgram();
+    auto ast = parser.parseProgram();
 
-    std::cout << "Parser check passed - no syntax errors" << std::endl;
+    std::cout << "=== AST check ===" << std::endl;
+    for (auto& node : ast) {
+        node->print();           // print tree structure
+        std::cout << "Value: " << node->evaluate() << "\n\n"; // optional evaluation
+    }
 }
 
 int main(int argc, char* argv[])

@@ -37,6 +37,25 @@ Token Lexer::getNextToken()
     return invalidToken;
 }
 
+Token Lexer::peekNextToken()
+{
+    // save current lexer state
+    size_t savedPos = m_pos;
+    int savedLine = m_line;
+    int savedColumn = m_column;
+
+    // Get the next token
+    Token nextToken = getNextToken();
+
+    // Restore the state
+    m_pos = savedPos;
+    m_line = savedLine;
+    m_column = savedColumn;
+
+    return nextToken;
+}
+
+
 char Lexer::currentChar() const
 {
     if (m_pos >= m_source.size()) {

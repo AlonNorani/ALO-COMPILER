@@ -5,12 +5,16 @@ Parser::Parser(Lexer& lexer) : lexer(lexer)
     advance(); // Initialize currentToken with the first token
 }
 
-void Parser::parseProgram()
-{
+std::vector<std::unique_ptr<ASTNode>> Parser::parseProgram() {
+    std::vector<std::unique_ptr<ASTNode>> nodes;
+
     while(currentToken.type != TokenType::EOF_TOKEN) {
-        parseStatement();
+        nodes.push_back(parseStatement());
     }
+
+    return nodes;
 }
+
 
 bool Parser::match(TokenType expectedType)
 {
@@ -38,57 +42,72 @@ void Parser::advance()
     currentToken = lexer.getNextToken();
 }
 
-void Parser::parseStatement()
-{
-    parseExpression(); // for now, a statement is just an expression (number)
+std::unique_ptr<ASTNode> Parser::parseStatement() {
+    // check if it's an assignment
+    if (currentToken.type == TokenType::IDENTIFIER && lexer.peekNextToken().type == TokenType::EQUAL) {
+        std::string varName = currentToken.lexeme;
+        advance(); // consume variable
+        advance(); // consume '='
+        auto expr = parseExpression();
+        expect(TokenType::SEMICOLON, "Expected ';' after assignment");
+        return std::make_unique<AssignmentNode>(varName, std::move(expr));
+    }
+
+    // else it's just an expression statement
+    auto expr = parseExpression();
     expect(TokenType::SEMICOLON, "Expected ';' after statement");
-
-}
-
-void Parser::parseExpression()
-{
-    parseTerm();
-
-    while(currentToken.type == TokenType::PLUS ||
-          currentToken.type == TokenType::MINUS) {
-        advance();        // consume + or -
-        parseTerm();      // parse next term
-    }
+    return expr;
 }
 
 
-/*
-this function parses a term in an expression. For now, a term is just a number, but in the future it can be extended to include variables, function calls, and parenthesized expressions.
-*/
-void Parser::parseTerm()
-{
-    parseFactor();
+// parseExpression: parses terms connected by + or -
+std::unique_ptr<ASTNode> Parser::parseExpression() {
+    auto left = parseTerm();
 
-    while(currentToken.type == TokenType::STAR ||
-          currentToken.type == TokenType::SLASH) {
-        advance();        // consume * or /
-        parseFactor();    // parse next factor
-    }
-}
-
-void Parser::parseFactor()
-{
-    if(currentToken.type == TokenType::NUMBER) {
+    while (currentToken.type == TokenType::PLUS ||
+           currentToken.type == TokenType::MINUS) {
+        char op = (currentToken.type == TokenType::PLUS) ? '+' : '-';
         advance();
-        return;
+        auto right = parseTerm();
+        left = std::make_unique<BinaryOpNode>(std::move(left), std::move(right), op);
     }
 
+    return left;
+}
+
+
+// parseTerm: parses factors connected by * or /
+std::unique_ptr<ASTNode> Parser::parseTerm() {
+    auto left = parseFactor();
+
+    while (currentToken.type == TokenType::STAR || 
+           currentToken.type == TokenType::SLASH) {
+        char op = (currentToken.type == TokenType::STAR) ? '*' : '/';
+        advance();
+        auto right = parseFactor();
+        left = std::make_unique<BinaryOpNode>(std::move(left), std::move(right), op);
+    }
+
+    return left;
+}
+std::unique_ptr<ASTNode> Parser::parseFactor() {
+    if(currentToken.type == TokenType::NUMBER) {
+        int val = std::stoi(currentToken.lexeme);
+        advance();
+        return std::make_unique<NumberNode>(val);
+    }
+    if(currentToken.type == TokenType::IDENTIFIER) {
+        std::string name = currentToken.lexeme;
+        advance();
+        return std::make_unique<VariableNode>(name);
+    }
     if(currentToken.type == TokenType::LPAREN) {
         advance();
-        parseExpression();
+        auto expr = parseExpression();
         expect(TokenType::RPAREN, "Expected ')'");
-        return;
+        return expr;
     }
-
-    throw std::runtime_error(
-        "Syntax Error at line " + std::to_string(currentToken.line) +
-        ", column " + std::to_string(currentToken.column) +
-        ": Expected a factor"
-    );
+    throw std::runtime_error("Syntax Error: Expected a factor");
 }
+
 

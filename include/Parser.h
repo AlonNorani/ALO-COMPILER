@@ -3,13 +3,16 @@
 #include <string>
 #include <stdexcept>
 #include "Lexer.h"
+#include <memory>
+#include "ASTNodes.h"
+#include <vector>
 
 class Parser
 {
 public:
     explicit Parser(Lexer& lexer);
     ~Parser() = default;
-    void parseProgram();
+    std::vector<std::unique_ptr<ASTNode>> parseProgram();
 
 private:
     Lexer& lexer; // reference to a Lexer instance
@@ -19,10 +22,10 @@ private:
     void advance();
 
     // parse functions for different grammar rules
-    void parseStatement();
-    void parseExpression();
-    void parseTerm();
-    void parseFactor();
+    std::unique_ptr<ASTNode> parseStatement();
+    std::unique_ptr<ASTNode> parseExpression();
+    std::unique_ptr<ASTNode> parseTerm();
+    std::unique_ptr<ASTNode> parseFactor();
 
 
 
