@@ -20,9 +20,9 @@ private:
 
     // parse functions for different grammar rules
     void parseStatement();
-    void parseExpression();
-    void parseTerm();
-    void parseFactor();
+    int parseExpression();
+    int parseTerm();
+    int parseFactor();
 
 
 

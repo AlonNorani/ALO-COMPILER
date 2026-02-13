@@ -40,49 +40,73 @@ void Parser::advance()
 
 void Parser::parseStatement()
 {
-    parseExpression(); // for now, a statement is just an expression (number)
+    int result = parseExpression();
     expect(TokenType::SEMICOLON, "Expected ';' after statement");
 
+    std::cout << "Result: " << result << std::endl;
 }
 
-void Parser::parseExpression()
+
+int Parser::parseExpression()
 {
-    parseTerm();
+    int value = parseTerm();
 
     while(currentToken.type == TokenType::PLUS ||
           currentToken.type == TokenType::MINUS) {
-        advance();        // consume + or -
-        parseTerm();      // parse next term
+
+        TokenType op = currentToken.type;
+        advance();
+
+        int rhs = parseTerm();
+
+        if(op == TokenType::PLUS)
+            value += rhs;
+        else
+            value -= rhs;
     }
+
+    return value;
 }
 
 
 /*
 this function parses a term in an expression. For now, a term is just a number, but in the future it can be extended to include variables, function calls, and parenthesized expressions.
 */
-void Parser::parseTerm()
+int Parser::parseTerm()
 {
-    parseFactor();
+    int value = parseFactor();
 
     while(currentToken.type == TokenType::STAR ||
           currentToken.type == TokenType::SLASH) {
-        advance();        // consume * or /
-        parseFactor();    // parse next factor
+
+        TokenType op = currentToken.type;
+        advance();
+
+        int rhs = parseFactor();
+
+        if(op == TokenType::STAR)
+            value *= rhs;
+        else
+            value /= rhs;
     }
+
+    return value;
 }
 
-void Parser::parseFactor()
+
+int Parser::parseFactor()
 {
     if(currentToken.type == TokenType::NUMBER) {
+        int value = std::stoi(currentToken.lexeme);
         advance();
-        return;
+        return value;
     }
 
     if(currentToken.type == TokenType::LPAREN) {
         advance();
-        parseExpression();
+        int value = parseExpression();
         expect(TokenType::RPAREN, "Expected ')'");
-        return;
+        return value;
     }
 
     throw std::runtime_error(
@@ -91,4 +115,5 @@ void Parser::parseFactor()
         ": Expected a factor"
     );
 }
+
 
