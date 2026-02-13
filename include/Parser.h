@@ -22,6 +22,7 @@ private:
     void parseStatement();
     void parseExpression();
     void parseTerm();
+    void parseFactor();
 
 
 
