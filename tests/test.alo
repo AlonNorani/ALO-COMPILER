@@ -3,11 +3,11 @@ let y = x + 5;
 2 + 3 * 4;
 (6 + 7) - 2;
 10 / 2 + 5;
-if (x)
+if (x == 5)
 {
     let z = 6;
 }
-while(5)
+while(true)
 {
     let x = x + 1;
 }

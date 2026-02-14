@@ -62,15 +62,19 @@ std::unique_ptr<ASTNode> Parser::parseStatement() {
     }
 }
 
-
-
-// parseExpression: parses terms connected by + or -
 std::unique_ptr<ASTNode> Parser::parseExpression() {
+    return parseComparison();
+}
+
+
+
+// parses terms connected by + or -
+std::unique_ptr<ASTNode> Parser::parseAdditive() {
     auto left = parseTerm();
 
     while (currentToken.type == TokenType::PLUS ||
            currentToken.type == TokenType::MINUS) {
-        char op = (currentToken.type == TokenType::PLUS) ? '+' : '-';
+        TokenType op = (currentToken.type == TokenType::PLUS) ? TokenType::PLUS : TokenType::MINUS;
         advance();
         auto right = parseTerm();
         left = std::make_unique<BinaryOpNode>(std::move(left), std::move(right), op);
@@ -86,7 +90,7 @@ std::unique_ptr<ASTNode> Parser::parseTerm() {
 
     while (currentToken.type == TokenType::STAR || 
            currentToken.type == TokenType::SLASH) {
-        char op = (currentToken.type == TokenType::STAR) ? '*' : '/';
+        TokenType op = (currentToken.type == TokenType::STAR) ? TokenType::STAR : TokenType::SLASH;
         advance();
         auto right = parseFactor();
         left = std::make_unique<BinaryOpNode>(std::move(left), std::move(right), op);
@@ -110,6 +114,14 @@ std::unique_ptr<ASTNode> Parser::parseFactor() {
         auto expr = parseExpression();
         expect(TokenType::RPAREN, "Expected ')'");
         return expr;
+    }
+    if(currentToken.type == TokenType::TRUE) {
+        advance();
+        return std::make_unique<BoolNode>(true);
+    }
+    if(currentToken.type == TokenType::FALSE) {
+        advance();
+        return std::make_unique<BoolNode>(false);
     }
     throw std::runtime_error("Syntax Error: Expected a factor");
 }
@@ -193,3 +205,29 @@ std::unique_ptr<WhileNode> Parser::parseWhileStatement() {
         std::move(body)
     );
 }
+
+std::unique_ptr<ASTNode> Parser::parseComparison() {
+    auto left = parseAdditive();
+
+    while (currentToken.type == TokenType::GREATER ||
+           currentToken.type == TokenType::LESS ||
+           currentToken.type == TokenType::DOUBLE_EQUAL ||
+           currentToken.type == TokenType::NOT_EQUAL ||
+           currentToken.type == TokenType::LESS_EQUAL ||
+           currentToken.type == TokenType::GREATER_EQUAL) {
+
+        TokenType opToken = currentToken.type;
+        advance();
+
+        auto right = parseAdditive();
+
+        left = std::make_unique<BinaryOpNode>(
+            std::move(left),
+            std::move(right),
+            opToken
+        );
+    }
+
+    return left;
+}
+

@@ -5,6 +5,23 @@
 #include <string>
 #include <iostream>
 #include <vector>
+#include "Token.h"
+// Converts TokenType to readable string
+inline std::string tokenTypeToString(TokenType type) {
+    switch (type) {
+        case TokenType::PLUS: return "+";
+        case TokenType::MINUS: return "-";
+        case TokenType::STAR: return "*";
+        case TokenType::SLASH: return "/";
+        case TokenType::GREATER: return ">";
+        case TokenType::LESS: return "<";
+        case TokenType::GREATER_EQUAL: return ">=";
+        case TokenType::LESS_EQUAL: return "<=";
+        case TokenType::DOUBLE_EQUAL: return "==";
+        case TokenType::NOT_EQUAL: return "!=";
+        default: return "UnknownOp";
+    }
+}
 
 // Base struct for all AST nodes
 struct ASTNode {
@@ -31,27 +48,33 @@ struct NumberNode : ASTNode {
 struct BinaryOpNode : ASTNode {
     std::unique_ptr<ASTNode> left;
     std::unique_ptr<ASTNode> right;
-    char op; // '+', '-', '*', '/'
+    TokenType op; // operator type
 
     BinaryOpNode(std::unique_ptr<ASTNode> l,
                  std::unique_ptr<ASTNode> r,
-                 char o)
+                 TokenType o)
         : left(std::move(l)), right(std::move(r)), op(o) {}
 
     int evaluate() const override {
         int lval = left->evaluate();
         int rval = right->evaluate();
         switch(op) {
-            case '+': return lval + rval;
-            case '-': return lval - rval;
-            case '*': return lval * rval;
-            case '/': return lval / rval; // assume no divide by zero
+            case TokenType::PLUS: return lval + rval;
+            case TokenType::MINUS: return lval - rval;
+            case TokenType::STAR: return lval * rval;
+            case TokenType::SLASH: return lval / rval; // assume no divide by zero
+            case TokenType::DOUBLE_EQUAL: return lval == rval;
+            case TokenType::NOT_EQUAL: return lval != rval;
+            case TokenType::LESS: return lval < rval;
+            case TokenType::LESS_EQUAL: return lval <= rval;
+            case TokenType::GREATER: return lval > rval;
+            case TokenType::GREATER_EQUAL: return lval >= rval;
             default: return 0;
         }
     }
 
     void print(int indent = 0) const override {
-        std::cout << std::string(indent, ' ') << "BinaryOp: " << op << "\n";
+        std::cout << std::string(indent, ' ') << "BinaryOp: " << tokenTypeToString(op) << "\n";
         left->print(indent + 2);
         right->print(indent + 2);
     }
@@ -138,5 +161,17 @@ struct WhileNode : ASTNode {
         body->print(indent + 4);
     }
 };
+
+struct BoolNode : ASTNode {
+    bool value;
+
+    BoolNode(bool val) : value(val) {}
+
+    void print(int indent = 0) const override {
+        std::cout << std::string(indent, ' ')
+                  << "Bool: " << (value ? "true" : "false") << "\n";
+    }
+};
+
 
 #endif // ASTNODES_H
