@@ -63,8 +63,48 @@ std::unique_ptr<ASTNode> Parser::parseStatement() {
 }
 
 std::unique_ptr<ASTNode> Parser::parseExpression() {
-    return parseComparison();
+    return parseLogicalOr();
 }
+
+std::unique_ptr<ASTNode> Parser::parseLogicalOr() {
+    auto left = parseLogicalAnd();
+
+    while (currentToken.type == TokenType::LOGICAL_OR) {
+        TokenType op = currentToken.type;
+        advance();
+
+        auto right = parseLogicalAnd();
+
+        left = std::make_unique<BinaryOpNode>(
+            std::move(left),
+            std::move(right),
+            op
+        );
+    }
+
+    return left;
+}
+
+
+std::unique_ptr<ASTNode> Parser::parseLogicalAnd() {
+    auto left = parseComparison();
+
+    while (currentToken.type == TokenType::LOGICAL_AND) {
+        TokenType op = currentToken.type;
+        advance();
+
+        auto right = parseComparison();
+
+        left = std::make_unique<BinaryOpNode>(
+            std::move(left),
+            std::move(right),
+            op
+        );
+    }
+
+    return left;
+}
+
 
 
 
@@ -86,13 +126,13 @@ std::unique_ptr<ASTNode> Parser::parseAdditive() {
 
 // parseTerm: parses factors connected by * or /
 std::unique_ptr<ASTNode> Parser::parseTerm() {
-    auto left = parseFactor();
+    auto left = parseUnary();
 
     while (currentToken.type == TokenType::STAR || 
            currentToken.type == TokenType::SLASH) {
         TokenType op = (currentToken.type == TokenType::STAR) ? TokenType::STAR : TokenType::SLASH;
         advance();
-        auto right = parseFactor();
+        auto right = parseUnary();
         left = std::make_unique<BinaryOpNode>(std::move(left), std::move(right), op);
     }
 
@@ -231,3 +271,19 @@ std::unique_ptr<ASTNode> Parser::parseComparison() {
     return left;
 }
 
+std::unique_ptr<ASTNode> Parser::parseUnary() {
+    if (currentToken.type == TokenType::NOT) {
+
+        TokenType op = currentToken.type;
+        advance();
+
+        auto operand = parseUnary();
+
+        return std::make_unique<UnaryOpNode>(
+            op,
+            std::move(operand)
+        );
+    }
+
+    return parseFactor();
+}

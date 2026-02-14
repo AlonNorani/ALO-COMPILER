@@ -19,6 +19,9 @@ inline std::string tokenTypeToString(TokenType type) {
         case TokenType::LESS_EQUAL: return "<=";
         case TokenType::DOUBLE_EQUAL: return "==";
         case TokenType::NOT_EQUAL: return "!=";
+        case TokenType::LOGICAL_AND: return "&&";
+        case TokenType::LOGICAL_OR: return "||";
+        case TokenType::NOT: return "!";
         default: return "UnknownOp";
     }
 }
@@ -79,6 +82,21 @@ struct BinaryOpNode : ASTNode {
         right->print(indent + 2);
     }
 };
+// Unary operation
+class UnaryOpNode : public ASTNode {
+public:
+    TokenType op;
+    std::unique_ptr<ASTNode> operand;
+
+    UnaryOpNode(TokenType op,
+                std::unique_ptr<ASTNode> operand)
+        : op(op), operand(std::move(operand)) {}
+    void print(int indent = 0) const override {
+        std::cout << std::string(indent, ' ') << "UnaryOp: " << tokenTypeToString(op) << "\n";
+        operand->print(indent + 2);
+    }
+};
+
 
 // Variable node
 struct VariableNode : ASTNode {

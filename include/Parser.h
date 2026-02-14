@@ -24,9 +24,12 @@ private:
     // parse functions for different grammar rules
     std::unique_ptr<ASTNode> parseStatement();
     std::unique_ptr<ASTNode> parseExpression();
+    std::unique_ptr<ASTNode> parseLogicalOr();
+    std::unique_ptr<ASTNode> parseLogicalAnd();
     std::unique_ptr<ASTNode> parseComparison();
     std::unique_ptr<ASTNode> parseAdditive();
     std::unique_ptr<ASTNode> parseTerm();
+    std::unique_ptr<ASTNode> parseUnary();
     std::unique_ptr<ASTNode> parseFactor();
     // assignments and variable declarations
     std::unique_ptr<ASTNode> parseAssignment();

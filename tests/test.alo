@@ -1,13 +1,3 @@
-let x = 6;
-let y = x + 5;
-2 + 3 * 4;
-(6 + 7) - 2;
-10 / 2 + 5;
-if (x == 5)
-{
-    let z = 6;
-}
-while(true)
-{
-    let x = x + 1;
-}
+let x = ;       // Missing expression
+if (5 + ) { }   // Invalid condition
+while 5 { }     // Missing parentheses

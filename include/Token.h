@@ -27,7 +27,7 @@ enum class TokenType
     IF,
     ELSE,
     RETURN,
-    // Operators
+    // binary operators
     PLUS,            
     MINUS,            
     STAR,             
@@ -38,7 +38,12 @@ enum class TokenType
     LESS,             
     LESS_EQUAL,       
     GREATER,          
-    GREATER_EQUAL,    
+    GREATER_EQUAL, 
+    LOGICAL_AND,
+    LOGICAL_OR,   
+    // Unary operators
+    NOT,
+
     // Delimiters
     LPAREN,          
     RPAREN,           
@@ -80,13 +85,17 @@ static std::unordered_map<char, TokenType> singleCharOperatorTokens = {
     {'/', TokenType::SLASH},
     {'=', TokenType::EQUAL},
     {'<', TokenType::LESS},
-    {'>', TokenType::GREATER}
+    {'>', TokenType::GREATER},
+    {'!', TokenType::NOT},
+
 };
 static std::unordered_map<std::string, TokenType> doubleCharOperatorTokens = {
     {"==", TokenType::DOUBLE_EQUAL},
     {"!=", TokenType::NOT_EQUAL},
     {"<=", TokenType::LESS_EQUAL},
-    {">=", TokenType::GREATER_EQUAL}
+    {">=", TokenType::GREATER_EQUAL},
+    {"&&", TokenType::LOGICAL_AND},
+    {"||", TokenType::LOGICAL_OR},
 };
 static std::unordered_map<char, TokenType> delimiterTokens = {
     {'(', TokenType::LPAREN},
