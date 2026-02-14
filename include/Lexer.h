@@ -1,7 +1,9 @@
 #ifndef LEXER_H
 #define LEXER_H
 #include <string>
+#include <iostream>
 #include "Token.h"
+
 class Lexer
 {
 public:
@@ -9,6 +11,7 @@ public:
     explicit Lexer(const std::string &source); 
     // function to get the next token from the source code
     Token getNextToken();
+    Token peekNextToken(); // lookahead function to peek at the next token without consuming it
 
 private:
     const std::string m_source;

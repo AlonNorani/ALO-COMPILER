@@ -27,7 +27,7 @@ enum class TokenType
     IF,
     ELSE,
     RETURN,
-    // Operators
+    // binary operators
     PLUS,            
     MINUS,            
     STAR,             
@@ -38,7 +38,12 @@ enum class TokenType
     LESS,             
     LESS_EQUAL,       
     GREATER,          
-    GREATER_EQUAL,    
+    GREATER_EQUAL, 
+    LOGICAL_AND,
+    LOGICAL_OR,   
+    // Unary operators
+    NOT,
+
     // Delimiters
     LPAREN,          
     RPAREN,           
@@ -46,7 +51,10 @@ enum class TokenType
     RBRACE,          
     SEMICOLON,        
     COMMA, 
-    COLON,           
+    COLON, 
+    // control flow
+    WHILE,
+    FOR,          
 
 
 };
@@ -64,7 +72,11 @@ static std::unordered_map<std::string, TokenType> keywords = {
     {"fn", TokenType::FN},
     {"if", TokenType::IF},
     {"else", TokenType::ELSE},
-    {"return", TokenType::RETURN}
+    {"return", TokenType::RETURN},
+    {"true", TokenType::TRUE},
+    {"false", TokenType::FALSE},
+    {"while", TokenType::WHILE},
+    {"for", TokenType::FOR}
 };
 static std::unordered_map<char, TokenType> singleCharOperatorTokens = {
     {'+', TokenType::PLUS},
@@ -73,13 +85,17 @@ static std::unordered_map<char, TokenType> singleCharOperatorTokens = {
     {'/', TokenType::SLASH},
     {'=', TokenType::EQUAL},
     {'<', TokenType::LESS},
-    {'>', TokenType::GREATER}
+    {'>', TokenType::GREATER},
+    {'!', TokenType::NOT},
+
 };
 static std::unordered_map<std::string, TokenType> doubleCharOperatorTokens = {
     {"==", TokenType::DOUBLE_EQUAL},
     {"!=", TokenType::NOT_EQUAL},
     {"<=", TokenType::LESS_EQUAL},
-    {">=", TokenType::GREATER_EQUAL}
+    {">=", TokenType::GREATER_EQUAL},
+    {"&&", TokenType::LOGICAL_AND},
+    {"||", TokenType::LOGICAL_OR},
 };
 static std::unordered_map<char, TokenType> delimiterTokens = {
     {'(', TokenType::LPAREN},
