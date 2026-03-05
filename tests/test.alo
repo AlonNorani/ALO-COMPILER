@@ -1,3 +1,9 @@
-let x = ;       // Missing expression
-if (5 + ) { }   // Invalid condition
-while 5 { }     // Missing parentheses
+let x = 5;
+if(x < 10)
+{
+    let z = 67;
+}
+while(true || x == 10)
+{
+    let y = 10;
+}
