@@ -1,5 +1,6 @@
 #ifndef SEMANTICANALYZER_H
 #define SEMANTICANALYZER_H
+
 #include <string>
 #include <unordered_map>
 #include "Token.h"
@@ -9,6 +10,7 @@
 #include <optional>
 #include <functional>
 #include <stdexcept>
+#include "ASTVisitor.h"
 
 enum class VarType {
     INT,
@@ -20,38 +22,41 @@ enum class VarType {
 
 struct VariableInfo {
     std::string name;
-    VarType type; 
-    bool mutableFlag; 
+    VarType type;
+    bool mutableFlag;
 };
 
 using SymbolTable = std::vector<std::unordered_map<std::string, VariableInfo>>;
 
-class SemanticAnalyzer
+class SemanticAnalyzer : public ASTVisitor
 {
 public:
     SemanticAnalyzer();
     ~SemanticAnalyzer();
+
     void analyze(const std::vector<std::unique_ptr<ASTNode>>& ast);
 
+    // Visitor functions
+    void visit(const AssignmentNode& node) override;
+    void visit(const BinaryOpNode& node) override;
+    void visit(const VariableNode& node) override;
+    void visit(const BlockNode& node) override;
+    void visit(const IfNode& node) override;
+    void visit(const WhileNode& node) override;
+
 private:
+
     SymbolTable m_symbolTable;
-    // manage scopes
+
+    // scope management
     void enterScope();
     void exitScope();
-    // variable declaration and lookup
+
+    // symbol table operations
     bool declareVariable(const std::string& name, VarType type, bool mutableFlag = false);
-    std::optional<std::reference_wrapper<VariableInfo>> lookupVariable(const std::string& name);
-    // Semantic checks for AST nodes
-    void analyzeNode(const ASTNode* node);
-    void analyzeAssignment(const AssignmentNode* node);
-    void analyzeBinaryOp(const BinaryOpNode* node);
-    void analyzeVariable(const VariableNode* node);
-    void analyzeBlock(const BlockNode* node);
-    void analyzeIf(const IfNode* node);
-    void analyzeWhile(const WhileNode* node);
 
-
-
+    std::optional<std::reference_wrapper<VariableInfo>>
+    lookupVariable(const std::string& name);
 };
 
 #endif

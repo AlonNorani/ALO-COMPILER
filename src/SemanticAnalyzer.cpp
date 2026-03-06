@@ -2,7 +2,7 @@
 
 SemanticAnalyzer::SemanticAnalyzer()
 {
-
+    enterScope(); // start with global scope
 }
 
 SemanticAnalyzer::~SemanticAnalyzer()
@@ -12,11 +12,57 @@ SemanticAnalyzer::~SemanticAnalyzer()
 
 
 void SemanticAnalyzer::analyze(const std::vector<std::unique_ptr<ASTNode>>& ast) {
-    enterScope(); // start global scope
     for (const auto& node : ast) {
-        analyzeNode(node.get());
+        node->accept(*this); // use visitor pattern to analyze each node
     }
-    exitScope();
+}
+
+void SemanticAnalyzer::visit(const AssignmentNode& node)
+{
+    auto var = lookupVariable(node.variableName); // look for the variable being assigned to
+    if (!var) 
+        throw std::runtime_error("Undefined variable: " + node.variableName);
+    node.expression->accept(*this); // analyze the expression being assigned
+    
+}
+
+void SemanticAnalyzer::visit(const BinaryOpNode& node)
+{
+    node.left->accept(*this); // analyze left operand
+    node.right->accept(*this); // analyze right operand
+}
+
+void SemanticAnalyzer::visit(const VariableNode& node)
+{
+    auto var = lookupVariable(node.name); // look for the variable
+    if (!var) {
+        throw std::runtime_error("Undefined variable: " + node.name);
+    }
+}
+
+void SemanticAnalyzer::visit(const BlockNode& node)
+{
+    enterScope(); // enter a new scope for the block
+    for(const auto& stmt : node.statements) {
+        stmt->accept(*this); // analyze each statement in the block
+    }
+    exitScope(); // exit the block scope
+}
+
+void SemanticAnalyzer::visit(const IfNode& node)
+{
+    node.condition->accept(*this); // analyze the condition expression
+    node.thenBranch->accept(*this); // analyze the then branch
+    if(node.elseBranch) { // check if there is an else branch
+        node.elseBranch->accept(*this); // analyze the else branch if it exists
+    }
+}
+
+void SemanticAnalyzer::visit(const WhileNode& node)
+{
+    node.condition->accept(*this); // analyze the loop condition
+    node.body->accept(*this); // analyze the loop body
+    
 }
 
 void SemanticAnalyzer::enterScope()
@@ -44,7 +90,7 @@ bool SemanticAnalyzer::declareVariable(const std::string& name, VarType type, bo
 }
 
 std::optional<std::reference_wrapper<VariableInfo>> SemanticAnalyzer::lookupVariable(const std::string& name) {
-    // search from innermost to outermost scope
+    // search from inner scope to outer scope
     for (auto it = m_symbolTable.rbegin(); it != m_symbolTable.rend(); ++it) {
         auto found = it->find(name); // find the variable in the current scope
         if (found != it->end()) {
@@ -54,23 +100,3 @@ std::optional<std::reference_wrapper<VariableInfo>> SemanticAnalyzer::lookupVari
     return std::nullopt; // not found
 }
 
-void SemanticAnalyzer::analyzeNode(const ASTNode* node) {
-    if (auto assign = dynamic_cast<const AssignmentNode*>(node)) {
-        analyzeAssignment(assign);
-    }
-    else if (auto binOp = dynamic_cast<const BinaryOpNode*>(node)) {
-        analyzeBinaryOp(binOp);
-    }
-    else if (auto var = dynamic_cast<const VariableNode*>(node)) {
-        analyzeVariable(var);
-    }
-    else if (auto block = dynamic_cast<const BlockNode*>(node)) {
-        analyzeBlock(block);
-    }
-    else if (auto ifNode = dynamic_cast<const IfNode*>(node)) {
-        analyzeIf(ifNode);
-    }
-    else if (auto whileNode = dynamic_cast<const WhileNode*>(node)) {
-        analyzeWhile(whileNode);
-    }
-}
