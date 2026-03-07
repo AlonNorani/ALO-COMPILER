@@ -10,6 +10,7 @@ struct BlockNode;
 struct IfNode;
 struct WhileNode;
 struct BoolNode;
+struct LetNode;
 
 struct ASTVisitor {
     virtual ~ASTVisitor() = default;
