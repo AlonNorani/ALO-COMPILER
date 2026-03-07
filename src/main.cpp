@@ -4,6 +4,7 @@
 #include <string>
 #include "Lexer.h"
 #include "Parser.h"
+#include "SemanticAnalyzer.h"
 
 std::string readFile(const char* filename)
 {
@@ -49,6 +50,26 @@ void checkParser(const std::string& source)
     }
 }
 
+void checkSemanticAnalyzer(const std::string& source)
+{
+    try
+    {
+        Lexer lexer(source);
+        Parser parser(lexer);
+        auto ast = parser.parseProgram();
+
+        SemanticAnalyzer analyzer;
+        analyzer.analyze(ast);
+
+        std::cout << "Semantic analysis completed successfully." << std::endl;
+    }
+    catch(const std::exception& e)
+    {
+        std::cerr << "Semantic analysis failed: " << e.what() << '\n';
+    }
+    
+    
+}
 int main(int argc, char* argv[])
 {
     if (argc < 2) {
@@ -60,9 +81,13 @@ int main(int argc, char* argv[])
         std::string source = readFile(argv[1]);
 
         // Uncomment when you want lexer debugging
-        checkLexer(source);
+        // checkLexer(source);
 
-        checkParser(source);
+        // Uncomment when you want parser debugging
+        // checkParser(source);
+
+        // Uncomment when you want semantic analysis debugging
+        checkSemanticAnalyzer(source);
     }
     catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << std::endl;

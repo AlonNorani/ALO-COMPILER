@@ -1,4 +1,4 @@
-#include "include/SemanticAnalyzer.h"
+#include "SemanticAnalyzer.h"
 
 SemanticAnalyzer::SemanticAnalyzer()
 {
