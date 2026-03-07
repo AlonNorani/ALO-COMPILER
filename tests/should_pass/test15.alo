@@ -1,0 +1,5 @@
+let x = 5;
+{
+    let mut y = x + 2;
+    y = y + 3;
+}
