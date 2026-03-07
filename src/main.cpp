@@ -52,23 +52,14 @@ void checkParser(const std::string& source)
 
 void checkSemanticAnalyzer(const std::string& source)
 {
-    try
-    {
-        Lexer lexer(source);
-        Parser parser(lexer);
-        auto ast = parser.parseProgram();
+    Lexer lexer(source);
+    Parser parser(lexer);
+    auto ast = parser.parseProgram();
 
-        SemanticAnalyzer analyzer;
-        analyzer.analyze(ast);
+    SemanticAnalyzer analyzer;
+    analyzer.analyze(ast); // will throw if something is wrong
 
-        std::cout << "Semantic analysis completed successfully." << std::endl;
-    }
-    catch(const std::exception& e)
-    {
-        std::cerr << "Semantic analysis failed: " << e.what() << '\n';
-    }
-    
-    
+    std::cout << "Semantic analysis completed successfully." << std::endl;
 }
 int main(int argc, char* argv[])
 {

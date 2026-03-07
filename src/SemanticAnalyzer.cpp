@@ -121,7 +121,7 @@ void SemanticAnalyzer::visit(const BlockNode& node)
 void SemanticAnalyzer::visit(const IfNode& node)
 {
     node.condition->accept(*this); 
-    if (m_currentType != VarType::BOOL) {
+    if (m_currentType != VarType::BOOL && m_currentType != VarType::INT) {
         throw std::runtime_error("Condition in 'if' statement must be of type bool");
     }
 

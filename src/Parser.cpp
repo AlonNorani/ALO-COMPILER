@@ -314,7 +314,7 @@ std::unique_ptr<ASTNode> Parser::parseComparison() {
 }
 
 std::unique_ptr<ASTNode> Parser::parseUnary() {
-    if (currentToken.type == TokenType::NOT) {
+    if (currentToken.type == TokenType::NOT || currentToken.type == TokenType::MINUS) {
 
         TokenType op = currentToken.type;
         advance();
