@@ -17,19 +17,87 @@ void SemanticAnalyzer::analyze(const std::vector<std::unique_ptr<ASTNode>>& ast)
     }
 }
 
+void SemanticAnalyzer::visit(const NumberNode& node)
+{
+    m_currentType = VarType::INT; 
+}
+
 void SemanticAnalyzer::visit(const AssignmentNode& node)
 {
     auto var = lookupVariable(node.variableName); // look for the variable being assigned to
     if (!var) 
         throw std::runtime_error("Undefined variable: " + node.variableName);
+    if(var->get().mutableFlag == false) {
+        throw std::runtime_error("Cannot assign to immutable variable: " + node.variableName);
+    }
     node.expression->accept(*this); // analyze the expression being assigned
+    
+    if(var->get().type != m_currentType) {
+        throw std::runtime_error("Type mismatch in assignment to variable: " + node.variableName);
+    }
     
 }
 
 void SemanticAnalyzer::visit(const BinaryOpNode& node)
 {
-    node.left->accept(*this); // analyze left operand
-    node.right->accept(*this); // analyze right operand
+    node.left->accept(*this);
+    VarType leftType = m_currentType;
+
+    node.right->accept(*this);
+    VarType rightType = m_currentType;
+
+    switch (node.op)
+    {
+        case TokenType::PLUS:
+        case TokenType::MINUS:
+        case TokenType::STAR:
+        case TokenType::SLASH:
+        {
+            if (leftType != VarType::INT || rightType != VarType::INT)
+                throw std::runtime_error("Arithmetic operations require integers");
+
+            m_currentType = VarType::INT;
+            break;
+        }
+
+        case TokenType::GREATER:
+        case TokenType::LESS:
+        case TokenType::GREATER_EQUAL:
+        case TokenType::LESS_EQUAL:
+        {
+            if (leftType != VarType::INT || rightType != VarType::INT)
+                throw std::runtime_error("Comparison operators require integers");
+
+            m_currentType = VarType::BOOL;
+            break;
+        }
+
+        case TokenType::DOUBLE_EQUAL:
+        case TokenType::NOT_EQUAL:
+        {
+            if (leftType != rightType)
+                throw std::runtime_error("Equality comparison requires operands of the same type");
+
+            m_currentType = VarType::BOOL;
+            break;
+        }
+
+        case TokenType::LOGICAL_AND:
+        case TokenType::LOGICAL_OR:
+        {
+            if ((leftType != VarType::BOOL && leftType != VarType::INT) ||
+                (rightType != VarType::BOOL && rightType != VarType::INT))
+            {
+                throw std::runtime_error("Logical operations require bool or int operands");
+            }
+
+            m_currentType = VarType::BOOL;
+            break;
+        }
+
+        default:
+            throw std::runtime_error("Unsupported binary operator");
+    }
 }
 
 void SemanticAnalyzer::visit(const VariableNode& node)
@@ -38,6 +106,7 @@ void SemanticAnalyzer::visit(const VariableNode& node)
     if (!var) {
         throw std::runtime_error("Undefined variable: " + node.name);
     }
+    m_currentType = var->get().type; 
 }
 
 void SemanticAnalyzer::visit(const BlockNode& node)
@@ -51,9 +120,13 @@ void SemanticAnalyzer::visit(const BlockNode& node)
 
 void SemanticAnalyzer::visit(const IfNode& node)
 {
-    node.condition->accept(*this); // analyze the condition expression
-    node.thenBranch->accept(*this); // analyze the then branch
-    if(node.elseBranch) { // check if there is an else branch
+    node.condition->accept(*this); 
+    if (m_currentType != VarType::BOOL) {
+        throw std::runtime_error("Condition in 'if' statement must be of type bool");
+    }
+
+    node.thenBranch->accept(*this); 
+    if(node.elseBranch) { 
         node.elseBranch->accept(*this); // analyze the else branch if it exists
     }
 }
@@ -61,8 +134,55 @@ void SemanticAnalyzer::visit(const IfNode& node)
 void SemanticAnalyzer::visit(const WhileNode& node)
 {
     node.condition->accept(*this); // analyze the loop condition
+    if(m_currentType != VarType::BOOL) {
+        throw std::runtime_error("Condition in 'while' statement must be of type bool");
+    }
     node.body->accept(*this); // analyze the loop body
-    
+}
+
+void SemanticAnalyzer::visit(const BoolNode& node)
+{
+    m_currentType = VarType::BOOL;
+}
+
+void SemanticAnalyzer::visit(const LetNode& node)
+{
+    node.value->accept(*this); // analyze the initializer expression
+    VarType varType = m_currentType; // get the type of the initializer
+
+    if (!declareVariable(node.variableName, varType, node.isMutable)) {
+        throw std::runtime_error("Variable already declared in this scope: " + node.variableName);
+    }
+}
+
+void SemanticAnalyzer::visit(const UnaryOpNode& node)
+{
+    node.operand->accept(*this);
+    VarType operandType = m_currentType;
+
+    switch (node.op)
+    {
+        case TokenType::NOT:
+        {
+            if (operandType != VarType::BOOL && operandType != VarType::INT)
+                throw std::runtime_error("Logical NOT requires bool or int operand");
+
+            m_currentType = VarType::BOOL;
+            break;
+        }
+
+        case TokenType::MINUS:
+        {
+            if (operandType != VarType::INT)
+                throw std::runtime_error("Unary minus requires integer operand");
+
+            m_currentType = VarType::INT;
+            break;
+        }
+
+        default:
+            throw std::runtime_error("Unsupported unary operator");
+    }
 }
 
 void SemanticAnalyzer::enterScope()

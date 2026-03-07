@@ -37,15 +37,29 @@ public:
     void analyze(const std::vector<std::unique_ptr<ASTNode>>& ast);
 
     // Visitor functions
-    void visit(const AssignmentNode& node) override;
-    void visit(const BinaryOpNode& node) override;
-    void visit(const VariableNode& node) override;
-    void visit(const BlockNode& node) override;
-    void visit(const IfNode& node) override;
-    void visit(const WhileNode& node) override;
+
+    // literals
+    virtual void visit(const NumberNode& node) override;
+    virtual void visit(const BoolNode& node) override;
+
+    // operations
+    virtual void visit(const BinaryOpNode& node) override;
+    virtual void visit(const UnaryOpNode& node) override;
+
+    // variables and assignments
+    virtual void visit(const VariableNode& node) override;
+    virtual void visit(const LetNode& node) override;
+    virtual void visit(const AssignmentNode& node) override;
+
+    // control flow
+    virtual void visit(const BlockNode& node) override;
+    virtual void visit(const IfNode& node) override;
+    virtual void visit(const WhileNode& node) override;
+
+   
 
 private:
-
+    VarType m_currentType; // to keep track of the current expression type during analysis
     SymbolTable m_symbolTable;
 
     // scope management
@@ -55,7 +69,7 @@ private:
     // symbol table operations
     bool declareVariable(const std::string& name, VarType type, bool mutableFlag = false);
 
-    std::optional<std::reference_wrapper<VariableInfo>>
+    std::optional<std::reference_wrapper<VariableInfo>> 
     lookupVariable(const std::string& name);
 };
 
