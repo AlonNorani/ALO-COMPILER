@@ -44,7 +44,19 @@ void Parser::advance()
 
 std::unique_ptr<ASTNode> Parser::parseStatement() {
     if(currentToken.type == TokenType::LET) {
-        return parseAssignment(); 
+        return parseLetStatement();
+    }
+    else if(currentToken.type == TokenType::IDENTIFIER)
+    {
+        // Lookahead to see if this is an assignment
+        Token nextToken = lexer.peekNextToken();
+        if (nextToken.type == TokenType::EQUAL) {
+            return parseAssignment();
+        }
+        // If it's not an assignment, treat it as an expression statement
+        auto expr = parseExpression();
+        expect(TokenType::SEMICOLON, "Expected ';' after expression");
+        return expr;
     }
     else if(currentToken.type == TokenType::IF) {
         return parseIfStatement();
@@ -168,7 +180,6 @@ std::unique_ptr<ASTNode> Parser::parseFactor() {
 
 std::unique_ptr<ASTNode> Parser::parseAssignment()
 {
-    advance(); // consume the let keyword
     if(currentToken.type != TokenType::IDENTIFIER) {
         throw std::runtime_error("Expected variable name after 'let'");
     }
@@ -178,6 +189,37 @@ std::unique_ptr<ASTNode> Parser::parseAssignment()
     auto expr = parseExpression();
     expect(TokenType::SEMICOLON, "Expected ';' after declaration");
     return std::make_unique<AssignmentNode>(varName, std::move(expr));
+}
+
+std::unique_ptr<ASTNode> Parser::parseLetStatement()
+{
+    advance(); // consume 'let'
+
+    bool isMutable = false;
+
+    if (currentToken.type == TokenType::MUT) {
+        isMutable = true;
+        advance(); // consume 'mut'
+    }
+
+    if (currentToken.type != TokenType::IDENTIFIER) {
+        throw std::runtime_error("Expected variable name after 'let'");
+    }
+
+    std::string varName = currentToken.lexeme;
+    advance(); // consume identifier
+
+    expect(TokenType::EQUAL, "Expected '=' after variable name");
+
+    auto expr = parseExpression();
+
+    expect(TokenType::SEMICOLON, "Expected ';' after declaration");
+
+    return std::make_unique<LetNode>(
+        varName,
+        std::move(expr),
+        isMutable
+    );
 }
 
 std::unique_ptr<BlockNode> Parser::parseBlock() {

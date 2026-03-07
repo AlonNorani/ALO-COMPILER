@@ -23,6 +23,7 @@ enum class TokenType
     FALSE,
     // Keywords
     LET, // let is for variable declaration
+    MUT, // mut is for mutable variable declaration
     FN,
     IF,
     ELSE,
@@ -69,6 +70,7 @@ const std::unordered_map<std::string, TokenType> dataTypeKeywords = {
 };
 static std::unordered_map<std::string, TokenType> keywords = {
     {"let", TokenType::LET},
+    {"mut", TokenType::MUT},
     {"fn", TokenType::FN},
     {"if", TokenType::IF},
     {"else", TokenType::ELSE},

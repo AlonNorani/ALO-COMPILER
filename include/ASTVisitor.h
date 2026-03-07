@@ -23,6 +23,7 @@ struct ASTVisitor {
     virtual void visit(const IfNode& node) = 0;
     virtual void visit(const WhileNode& node) = 0;
     virtual void visit(const BoolNode& node) = 0;
+    virtual void visit(const LetNode& node) = 0;
 };
 
 #endif

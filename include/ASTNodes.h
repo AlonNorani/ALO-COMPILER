@@ -176,6 +176,25 @@ struct VariableNode : ASTNode {
 };
 
 // assigmnments
+struct LetNode : ASTNode {
+    std::string variableName;
+    std::unique_ptr<ASTNode> value;
+    bool isMutable;
+    LetNode(const std::string& var, std::unique_ptr<ASTNode> val, bool mutableFlag = false)
+        : variableName(var), value(std::move(val)), isMutable(mutableFlag) {}
+    ACCEPT_VISITOR
+    void print(int indent = 0) const override {
+        std::cout << std::string(indent, ' ')
+                  << "Let: " << variableName 
+                  << (isMutable ? " (mutable)" : " (immutable)") << "\n";
+        if(value) {
+            std::cout << std::string(indent + 2, ' ')
+                      << "Value:\n";
+            value->print(indent + 4);
+        }
+    }
+};
+
 
 struct AssignmentNode : ASTNode {
     std::string variableName;
