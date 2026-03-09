@@ -32,7 +32,8 @@ private:
     std::unique_ptr<ASTNode> parseUnary();
     std::unique_ptr<ASTNode> parseFactor();
     // assignments and variable declarations
-    std::unique_ptr<ASTNode> parseAssignment();
+    std::unique_ptr<ASTNode> parseAssignment(); // for simple assignments like x = 5;
+    std::unique_ptr<ASTNode> parseLetStatement(); // for variable declarations with 'let' keyword
     // parse blcoks and control flow statements
     std::unique_ptr<BlockNode> parseBlock();       
     std::unique_ptr<IfNode> parseIfStatement();  
