@@ -38,6 +38,11 @@ private:
     std::unique_ptr<BlockNode> parseBlock();       
     std::unique_ptr<IfNode> parseIfStatement();  
     std::unique_ptr<WhileNode> parseWhileStatement(); 
+    //functions
+    std::unique_ptr<FunctionNode> parseFunction();
+    std::vector<Parameter> parseParameterList();
+    std::string parseType();
+    std::unique_ptr<ASTNode> parseReturnStatement();
 
 
 

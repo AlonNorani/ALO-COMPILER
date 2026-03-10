@@ -25,6 +25,7 @@ enum class TokenType
     LET, // let is for variable declaration
     MUT, // mut is for mutable variable declaration
     FN,
+    ARROW, // for function return type annotation
     IF,
     ELSE,
     RETURN,
@@ -98,6 +99,7 @@ static std::unordered_map<std::string, TokenType> doubleCharOperatorTokens = {
     {">=", TokenType::GREATER_EQUAL},
     {"&&", TokenType::LOGICAL_AND},
     {"||", TokenType::LOGICAL_OR},
+    {"->", TokenType::ARROW},
 };
 static std::unordered_map<char, TokenType> delimiterTokens = {
     {'(', TokenType::LPAREN},

@@ -43,7 +43,14 @@ void Parser::advance()
 }
 
 std::unique_ptr<ASTNode> Parser::parseStatement() {
-    if(currentToken.type == TokenType::LET) {
+    if(currentToken.type == TokenType::FN) {
+        return parseFunction();
+    }
+    else if(currentToken.type == TokenType::RETURN) 
+    {
+        return parseReturnStatement();
+    }
+    else if(currentToken.type == TokenType::LET) {
         return parseLetStatement();
     }
     else if(currentToken.type == TokenType::IDENTIFIER)
@@ -288,6 +295,79 @@ std::unique_ptr<WhileNode> Parser::parseWhileStatement() {
     );
 }
 
+std::unique_ptr<FunctionNode> Parser::parseFunction()
+{
+    expect(TokenType::FN, "Expected 'fn'");
+
+    if(currentToken.type != TokenType::IDENTIFIER)
+        throw std::runtime_error("Expected function name");
+
+    std::string name = currentToken.lexeme;
+    advance();
+
+    expect(TokenType::LPAREN, "Expected '(' after function name");
+
+    auto params = parseParameterList();
+
+    expect(TokenType::RPAREN, "Expected ')' after parameters");
+
+    expect(TokenType::ARROW, "Expected '->' after parameters");
+
+    std::string returnType = parseType();
+
+    auto body = parseBlock();
+
+    return std::make_unique<FunctionNode>(
+        name,
+        std::move(params),
+        returnType,
+        std::move(body)
+    );
+}
+
+std::vector<Parameter> Parser::parseParameterList()
+{
+    std::vector<Parameter> params;
+
+    if(currentToken.type == TokenType::RPAREN)
+        return params;
+
+    while(true)
+    {
+        std::string type = parseType();
+
+        if(currentToken.type != TokenType::IDENTIFIER)
+            throw std::runtime_error("Expected parameter name");
+
+        std::string name = currentToken.lexeme;
+        advance();
+
+        params.push_back({type, name});
+
+        if(!match(TokenType::COMMA))
+            break;
+    }
+
+    return params;
+}
+
+std::string Parser::parseType()
+{
+    if(currentToken.type != TokenType::INT &&
+       currentToken.type != TokenType::BOOL &&
+       currentToken.type != TokenType::FLOAT &&
+       currentToken.type != TokenType::STRING_TYPE &&
+       currentToken.type != TokenType::VOID)
+    {
+        throw std::runtime_error("Expected type");
+    }
+
+    std::string type = currentToken.lexeme;
+    advance();
+
+    return type;
+}
+
 std::unique_ptr<ASTNode> Parser::parseComparison() {
     auto left = parseAdditive();
 
@@ -328,4 +408,15 @@ std::unique_ptr<ASTNode> Parser::parseUnary() {
     }
 
     return parseFactor();
+}
+
+std::unique_ptr<ASTNode> Parser::parseReturnStatement()
+{
+    expect(TokenType::RETURN, "Expected 'return'");
+
+    auto expr = parseExpression();
+
+    expect(TokenType::SEMICOLON, "Expected ';' after return");
+
+    return std::make_unique<ReturnNode>(std::move(expr));
 }

@@ -185,6 +185,45 @@ void SemanticAnalyzer::visit(const UnaryOpNode& node)
     }
 }
 
+void SemanticAnalyzer::visit(const FunctionNode& node)
+{
+    if(m_functionsTable.find(node.name) != m_functionsTable.end()) {
+        throw std::runtime_error("Function already declared: " + node.name);
+    }
+
+    FunctionInfo info;
+
+    for(auto& param : node.parameters)
+        info.paramTypes.push_back(stringToVarType(param.type));
+
+    info.returnType = stringToVarType(node.returnType);
+
+    m_functionsTable[node.name] = info;
+
+    VarType returnType = info.returnType;
+
+    m_currentFunctionReturnType = returnType;
+    m_foundReturn = false;
+
+    m_insideFunction = true;
+    enterScope();
+
+    for(auto& param : node.parameters)
+    {
+        declareVariable(param.name, stringToVarType(param.type), false);
+    }
+
+    node.body->accept(*this);
+
+    exitScope();
+    m_insideFunction = false;
+
+    if(returnType != VarType::VOID && !m_foundReturn)
+    {
+        throw std::runtime_error("Function '" + node.name + "' must return a value");
+    }
+}
+
 void SemanticAnalyzer::enterScope()
 {
     m_symbolTable.emplace_back(); // Add a new scope, just an empty map
@@ -209,6 +248,18 @@ bool SemanticAnalyzer::declareVariable(const std::string& name, VarType type, bo
     return true;
 }
 
+VarType SemanticAnalyzer::stringToVarType(const std::string& typeStr)
+{
+
+    if (typeStr == "int") return VarType::INT;
+    if (typeStr == "float") return VarType::FLOAT;
+    if (typeStr == "string") return VarType::STRING;
+    if (typeStr == "bool") return VarType::BOOL;
+    if (typeStr == "void") return VarType::VOID;
+    throw std::runtime_error("Unknown type: " + typeStr);
+
+}
+
 std::optional<std::reference_wrapper<VariableInfo>> SemanticAnalyzer::lookupVariable(const std::string& name) {
     // search from inner scope to outer scope
     for (auto it = m_symbolTable.rbegin(); it != m_symbolTable.rend(); ++it) {
@@ -218,5 +269,21 @@ std::optional<std::reference_wrapper<VariableInfo>> SemanticAnalyzer::lookupVari
         }
     }
     return std::nullopt; // not found
+}
+
+void SemanticAnalyzer::visit(const ReturnNode& node)
+{
+    if(!m_insideFunction)
+    {
+        throw std::runtime_error("Return statement outside function");
+    }
+    node.expression->accept(*this);
+
+    if(m_currentType != m_currentFunctionReturnType)
+    {
+        throw std::runtime_error("Return type mismatch");
+    }
+
+    m_foundReturn = true;
 }
 
