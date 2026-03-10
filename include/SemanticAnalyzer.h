@@ -65,6 +65,7 @@ public:
     // functions
     virtual void visit(const FunctionNode& node) override;
     virtual void visit(const ReturnNode& node) override;
+    virtual void visit(const CallNode& node) override;
 
    
 

@@ -163,25 +163,47 @@ std::unique_ptr<ASTNode> Parser::parseFactor() {
         advance();
         return std::make_unique<NumberNode>(val);
     }
+
     if(currentToken.type == TokenType::IDENTIFIER) {
         std::string name = currentToken.lexeme;
         advance();
+
+        // check for function call
+        if(currentToken.type == TokenType::LPAREN) {
+            advance(); // consume '('
+            std::vector<std::unique_ptr<ASTNode>> args;
+
+            if(currentToken.type != TokenType::RPAREN) { // not empty argument list
+                do {
+                    args.push_back(parseExpression()); // parse any expression as argument
+                } while(match(TokenType::COMMA));
+            }
+
+            expect(TokenType::RPAREN, "Expected ')' after function call arguments");
+            return std::make_unique<CallNode>(name, std::move(args));
+        }
+
+        // normal variable
         return std::make_unique<VariableNode>(name);
     }
+
     if(currentToken.type == TokenType::LPAREN) {
         advance();
         auto expr = parseExpression();
         expect(TokenType::RPAREN, "Expected ')'");
         return expr;
     }
+
     if(currentToken.type == TokenType::TRUE) {
         advance();
         return std::make_unique<BoolNode>(true);
     }
+
     if(currentToken.type == TokenType::FALSE) {
         advance();
         return std::make_unique<BoolNode>(false);
     }
+
     throw std::runtime_error("Syntax Error: Expected a factor");
 }
 

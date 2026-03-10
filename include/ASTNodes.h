@@ -347,4 +347,27 @@ struct ReturnNode : ASTNode {
         }
     }
 };
+
+struct CallNode : ASTNode {
+    std::string functionName;
+    std::vector<std::unique_ptr<ASTNode>> arguments;
+
+    CallNode(const std::string& name, std::vector<std::unique_ptr<ASTNode>> args)
+        : functionName(name), arguments(std::move(args)) {}
+
+    ACCEPT_VISITOR
+
+    void print(int indent = 0) const override {
+        std::cout << std::string(indent, ' ')
+                  << "Call: " << functionName << "\n";
+
+        if (!arguments.empty()) {
+            std::cout << std::string(indent + 2, ' ')
+                      << "Arguments:\n";
+            for (const auto& arg : arguments) {
+                arg->print(indent + 4);
+            }
+        }
+    }
+};
 #endif

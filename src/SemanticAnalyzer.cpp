@@ -287,3 +287,33 @@ void SemanticAnalyzer::visit(const ReturnNode& node)
     m_foundReturn = true;
 }
 
+void SemanticAnalyzer::visit(const CallNode& node)
+{
+    // Check that the function exists
+    auto it = m_functionsTable.find(node.functionName);
+    if(it == m_functionsTable.end()) {
+        throw std::runtime_error("Call to undefined function: " + node.functionName);
+    }
+
+    const FunctionInfo& info = it->second;
+
+    // Check argument count
+    if(node.arguments.size() != info.paramTypes.size()) {
+        throw std::runtime_error("Function '" + node.functionName +
+                                 "' expects " + std::to_string(info.paramTypes.size()) +
+                                 " arguments, got " + std::to_string(node.arguments.size()));
+    }
+
+    // Analyze arguments and check types
+    for(size_t i = 0; i < node.arguments.size(); i++) {
+        node.arguments[i]->accept(*this);
+        if(m_currentType != info.paramTypes[i]) {
+            throw std::runtime_error("Type mismatch for argument " + std::to_string(i+1) +
+                                     " in call to function '" + node.functionName + "'");
+        }
+    }
+
+    // The type of a function call expression is the function's return type
+    m_currentType = info.returnType;
+}
+

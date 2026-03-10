@@ -13,6 +13,7 @@ struct BoolNode;
 struct LetNode;
 struct FunctionNode;
 struct ReturnNode;
+struct CallNode;
 
 struct ASTVisitor {
     virtual ~ASTVisitor() = default;
@@ -29,6 +30,7 @@ struct ASTVisitor {
     virtual void visit(const LetNode& node) = 0;
     virtual void visit(const FunctionNode& node) = 0;
     virtual void visit(const ReturnNode& node) = 0;
+    virtual void visit(const CallNode& node) = 0;
 };
 
 #endif
