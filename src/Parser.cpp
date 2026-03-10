@@ -350,19 +350,17 @@ std::unique_ptr<FunctionNode> Parser::parseFunction()
 std::vector<Parameter> Parser::parseParameterList()
 {
     std::vector<Parameter> params;
-
     if(currentToken.type == TokenType::RPAREN)
         return params;
 
     while(true)
     {
-        std::string type = parseType();
-
         if(currentToken.type != TokenType::IDENTIFIER)
             throw std::runtime_error("Expected parameter name");
-
         std::string name = currentToken.lexeme;
         advance();
+        expect(TokenType::COLON, "Expected ':' after parameter name");
+        std::string type = parseType();
 
         params.push_back({type, name});
 
