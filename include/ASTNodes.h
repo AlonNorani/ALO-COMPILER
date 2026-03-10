@@ -197,6 +197,11 @@ struct LetNode : ASTNode {
             value->print(indent + 4);
         }
     }
+    int evaluate() const override {
+        if (value)
+            return value->evaluate();
+        return 0; // default uninitialized value
+    }
 };
 
 
@@ -346,6 +351,11 @@ struct ReturnNode : ASTNode {
             expression->print(indent + 2);
         }
     }
+    int evaluate() const override {
+        if (expression)
+            return expression->evaluate();
+        return 0; // default void return
+    }
 };
 
 struct CallNode : ASTNode {
@@ -368,6 +378,15 @@ struct CallNode : ASTNode {
                 arg->print(indent + 4);
             }
         }
+    }
+    int evaluate() const override {
+        // For testing, we can only evaluate built-in functions like "print"
+        if (functionName == "print" && !arguments.empty()) {
+            int val = arguments[0]->evaluate();
+            std::cout << "Print: " << val << std::endl;
+            return 0; // print returns void
+        }
+        return 0; // default for unknown functions
     }
 };
 #endif

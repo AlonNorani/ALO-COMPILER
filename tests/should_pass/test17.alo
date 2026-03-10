@@ -1,0 +1,6 @@
+fn mul(int a, int b) -> int
+{
+    return a * b;
+} 
+let x = 3;
+let y = mul(x, 4) + 5;

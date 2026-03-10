@@ -1,0 +1,6 @@
+fn add(int a, int b) -> int
+{
+    return a + b;
+}
+let x = true;
+let y = add(x, 6);

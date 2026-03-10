@@ -17,3 +17,20 @@ add_executable(ALO-COMPILER ${SOURCES})
 # We attach the 'include' folder directly to the ALO-COMPILER target.
 # This ensures that any file in ALO-COMPILER can find headers in /include.
 target_include_directories(ALO-COMPILER PRIVATE include)
+
+# 5. Add src folder to include path (so CodeGenerator.h is found)
+target_include_directories(ALO-COMPILER PRIVATE src)
+
+# 6. Find LLVM using llvm-config
+execute_process(COMMAND llvm-config --cxxflags OUTPUT_VARIABLE LLVM_CXXFLAGS OUTPUT_STRIP_TRAILING_WHITESPACE)
+execute_process(COMMAND llvm-config --ldflags OUTPUT_VARIABLE LLVM_LDFLAGS OUTPUT_STRIP_TRAILING_WHITESPACE)
+execute_process(COMMAND llvm-config --libs core support irreader OUTPUT_VARIABLE LLVM_LIBS OUTPUT_STRIP_TRAILING_WHITESPACE)
+execute_process(COMMAND llvm-config --includedir OUTPUT_VARIABLE LLVM_INCLUDE_DIR OUTPUT_STRIP_TRAILING_WHITESPACE)
+
+# Add LLVM flags and includes
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${LLVM_CXXFLAGS}")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fexceptions")
+include_directories(${LLVM_INCLUDE_DIR})
+
+# 7. Link LLVM libraries
+target_link_libraries(ALO-COMPILER ${LLVM_LDFLAGS} ${LLVM_LIBS})

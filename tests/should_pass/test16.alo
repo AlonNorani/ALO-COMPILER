@@ -1,0 +1,8 @@
+let x = 6;
+let y = 5;
+fn add (int a, int b) -> int
+{
+    return a + b;
+}
+
+let z = add(x, y);
