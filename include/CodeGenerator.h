@@ -13,9 +13,9 @@
 #include <llvm/IR/Value.h>
 #include <llvm/IR/Instructions.h>
 
-// Symbol table: stack of scopes
+// Scopes table: stack of scopes
 // Each variable maps to its stack allocation (AllocaInst)
-using SymbolTable = std::vector<std::unordered_map<std::string, llvm::AllocaInst*>>;
+using ScopesTable = std::vector<std::unordered_map<std::string, llvm::AllocaInst*>>;
 
 class CodeGenerator
 {
@@ -55,7 +55,7 @@ private:
     llvm::IRBuilder<> m_builder;
     llvm::Module m_module;
 
-    SymbolTable m_scopes;
+    ScopesTable m_scopes;
 };
 
 #endif

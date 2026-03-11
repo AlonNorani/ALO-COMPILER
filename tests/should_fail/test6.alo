@@ -1,2 +1,4 @@
-let x = true;
-let y = -x;
+fn main() -> void {
+    let x = true;
+    let y = -x;
+}

@@ -6,10 +6,7 @@ CodeGenVisitor::CodeGenVisitor(CodeGenerator& cg)
 
 }
 
-CodeGenVisitor::~CodeGenVisitor()
-{
 
-}
 
 void CodeGenVisitor::visit(const NumberNode& node)
 {
@@ -199,45 +196,76 @@ void CodeGenVisitor::visit(const FunctionNode& node)
 {
     auto& builder = m_cg.getBuilder();
     auto& module = m_cg.getModule();
+    llvm::LLVMContext& context = builder.getContext();
 
-    std::vector<llvm::Type*> argTypes(
-        node.parameters.size(),
-        builder.getInt32Ty()
+    // --- Determine return type ---
+    llvm::Type* retType = nullptr;
+    if (node.returnType == "void") {
+        retType = builder.getVoidTy();
+    } else if (node.returnType == "int") {
+        retType = builder.getInt32Ty();
+    } else if (node.returnType == "bool") {
+        retType = builder.getInt1Ty();
+    } else {
+        throw std::runtime_error("Unsupported return type: " + node.returnType);
+    }
+
+    // --- Determine argument types ---
+    std::vector<llvm::Type*> argTypes;
+    for (auto& param : node.parameters) {
+        if (param.type == "int") {
+            argTypes.push_back(builder.getInt32Ty());
+        } else if (param.type == "bool") {
+            argTypes.push_back(builder.getInt1Ty());
+        } else {
+            throw std::runtime_error("Unsupported parameter type: " + param.type);
+        }
+    }
+
+    // --- Create the function type ---
+    llvm::FunctionType* funcType = llvm::FunctionType::get(retType, argTypes, false);
+
+    // --- Create the function in the module ---
+    llvm::Function* function = llvm::Function::Create(
+        funcType,
+        llvm::Function::ExternalLinkage,
+        node.name,
+        module
     );
 
-    llvm::FunctionType* funcType =
-        llvm::FunctionType::get(builder.getInt32Ty(), argTypes, false);
-
-    llvm::Function* function =
-        llvm::Function::Create(
-            funcType,
-            llvm::Function::ExternalLinkage,
-            node.name,
-            module
-        );
-
+    // --- Name the arguments ---
     unsigned idx = 0;
-    for(auto& arg : function->args())
+    for (auto& arg : function->args())
         arg.setName(node.parameters[idx++].name);
 
-    llvm::BasicBlock* entry =
-        llvm::BasicBlock::Create(builder.getContext(), "entry", function);
-
-    builder.SetInsertPoint(entry);
+    // --- Create entry block ---
+    llvm::BasicBlock* entryBB = llvm::BasicBlock::Create(context, "entry", function);
+    builder.SetInsertPoint(entryBB);
 
     m_cg.pushScope();
 
-    for(auto& arg : function->args())
-    {
-        auto alloc =
-            m_cg.createEntryBlockAlloca(function, arg.getName().str());
-
+    // --- Allocate stack space for arguments and store their values ---
+    for (auto& arg : function->args()) {
+        llvm::AllocaInst* alloc = m_cg.createEntryBlockAlloca(function, arg.getName().str());
         builder.CreateStore(&arg, alloc);
-
         m_cg.declareVariable(arg.getName().str(), alloc);
     }
 
-    node.body->accept(*this);
+    // --- Generate code for the function body ---
+    if (node.body)
+        node.body->accept(*this);
+
+    // --- Ensure the function has a return instruction ---
+    if (!builder.GetInsertBlock()->getTerminator()) {
+        if (retType->isVoidTy()) {
+            builder.CreateRetVoid();
+        } else if (retType->isIntegerTy()) {
+            builder.CreateRet(m_lastValue ? m_lastValue : llvm::ConstantInt::get(retType, 0));
+        } else if (retType->isPointerTy()) {
+            builder.CreateRet(m_lastValue ? m_lastValue :
+                llvm::ConstantPointerNull::get(llvm::cast<llvm::PointerType>(retType)));
+        }
+    }
 
     m_cg.popScope();
 }
@@ -265,3 +293,10 @@ void CodeGenVisitor::visit(const CallNode& node)
         builder.CreateCall(function, args, "calltmp");
 }
 
+void CodeGenVisitor::generate(const std::vector<std::unique_ptr<ASTNode>>& program)
+{
+    for (const auto& node : program)
+    {
+        node->accept(*this);
+    }
+}

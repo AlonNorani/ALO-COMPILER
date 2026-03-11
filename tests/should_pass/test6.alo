@@ -1,4 +1,6 @@
-let x = 5;
-if (1) {
-    let y = 2;
+fn main() -> void {
+    let x = 5;
+    if (1) {
+        let y = 2;
+    }
 }

@@ -1,3 +1,5 @@
-let x = true;
-let y = true;
-let z = x * y;
+fn main() -> void {
+    let x = true;
+    let y = true;
+    let z = x * y;
+}

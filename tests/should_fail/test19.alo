@@ -1,0 +1,9 @@
+fn main() -> void {
+    let x = 5;
+    if (x) {
+        let y = true;
+    } else {
+        let y = 1;
+    }
+    y = 3;
+}

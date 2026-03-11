@@ -11,7 +11,7 @@ class CodeGenVisitor : public ASTVisitor
 {
 public:
     CodeGenVisitor(CodeGenerator& cg);
-
+    void generate(const std::vector<std::unique_ptr<ASTNode>>& program);
     llvm::Value* getValue();
 
     void visit(const NumberNode& node) override;
