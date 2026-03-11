@@ -165,3 +165,103 @@ void CodeGenVisitor::visit(const IfNode& node)
 
     builder.SetInsertPoint(mergeBB);
 }
+
+void CodeGenVisitor::visit(const WhileNode& node)
+{
+    auto& builder = m_cg.getBuilder();
+    llvm::Function* function = builder.GetInsertBlock()->getParent();
+
+    llvm::BasicBlock* condBB =
+        llvm::BasicBlock::Create(builder.getContext(), "whilecond", function);
+
+    llvm::BasicBlock* bodyBB =
+        llvm::BasicBlock::Create(builder.getContext(), "whilebody", function);
+
+    llvm::BasicBlock* endBB =
+        llvm::BasicBlock::Create(builder.getContext(), "whileend", function);
+
+    builder.CreateBr(condBB);
+
+    builder.SetInsertPoint(condBB);
+    node.condition->accept(*this);
+
+    builder.CreateCondBr(m_lastValue, bodyBB, endBB);
+
+    builder.SetInsertPoint(bodyBB);
+    node.body->accept(*this);
+
+    builder.CreateBr(condBB);
+
+    builder.SetInsertPoint(endBB);
+}
+
+void CodeGenVisitor::visit(const FunctionNode& node)
+{
+    auto& builder = m_cg.getBuilder();
+    auto& module = m_cg.getModule();
+
+    std::vector<llvm::Type*> argTypes(
+        node.parameters.size(),
+        builder.getInt32Ty()
+    );
+
+    llvm::FunctionType* funcType =
+        llvm::FunctionType::get(builder.getInt32Ty(), argTypes, false);
+
+    llvm::Function* function =
+        llvm::Function::Create(
+            funcType,
+            llvm::Function::ExternalLinkage,
+            node.name,
+            module
+        );
+
+    unsigned idx = 0;
+    for(auto& arg : function->args())
+        arg.setName(node.parameters[idx++].name);
+
+    llvm::BasicBlock* entry =
+        llvm::BasicBlock::Create(builder.getContext(), "entry", function);
+
+    builder.SetInsertPoint(entry);
+
+    m_cg.pushScope();
+
+    for(auto& arg : function->args())
+    {
+        auto alloc =
+            m_cg.createEntryBlockAlloca(function, arg.getName().str());
+
+        builder.CreateStore(&arg, alloc);
+
+        m_cg.declareVariable(arg.getName().str(), alloc);
+    }
+
+    node.body->accept(*this);
+
+    m_cg.popScope();
+}
+
+void CodeGenVisitor::visit(const CallNode& node)
+{
+    auto& builder = m_cg.getBuilder();
+    auto& module = m_cg.getModule();
+
+    llvm::Function* function =
+        module.getFunction(node.functionName);
+
+    if(!function)
+        throw std::runtime_error("Unknown function");
+
+    std::vector<llvm::Value*> args;
+
+    for(const auto& arg : node.arguments)
+    {
+        arg->accept(*this);
+        args.push_back(m_lastValue);
+    }
+
+    m_lastValue =
+        builder.CreateCall(function, args, "calltmp");
+}
+
