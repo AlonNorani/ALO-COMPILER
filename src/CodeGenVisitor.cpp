@@ -33,32 +33,91 @@ void CodeGenVisitor::visit(const BinaryOpNode& node)
 {
     auto& builder = m_cg.getBuilder();
 
+    // Generate code for left and right expressions
     node.left->accept(*this);
     llvm::Value* L = m_lastValue;
 
     node.right->accept(*this);
     llvm::Value* R = m_lastValue;
 
-    switch(node.op)
+    switch (node.op)
     {
+        // Arithmetic
         case TokenType::PLUS:
             m_lastValue = builder.CreateAdd(L, R, "addtmp");
             break;
-
         case TokenType::MINUS:
             m_lastValue = builder.CreateSub(L, R, "subtmp");
             break;
-
         case TokenType::STAR:
             m_lastValue = builder.CreateMul(L, R, "multmp");
             break;
-
         case TokenType::SLASH:
             m_lastValue = builder.CreateSDiv(L, R, "divtmp");
             break;
 
+        // Comparison
+        case TokenType::LESS:
+            m_lastValue = builder.CreateICmpSLT(L, R, "lttmp");
+            break;
+        case TokenType::GREATER:
+            m_lastValue = builder.CreateICmpSGT(L, R, "gttmp");
+            break;
+        case TokenType::LESS_EQUAL:
+            m_lastValue = builder.CreateICmpSLE(L, R, "letmp");
+            break;
+        case TokenType::GREATER_EQUAL:
+            m_lastValue = builder.CreateICmpSGE(L, R, "getmp");
+            break;
+
+        // Equality
+        case TokenType::DOUBLE_EQUAL:
+            m_lastValue = builder.CreateICmpEQ(L, R, "eqtmp");
+            break;
+        case TokenType::NOT_EQUAL:
+            m_lastValue = builder.CreateICmpNE(L, R, "netmp");
+            break;
+
+        // Logical
+        case TokenType::LOGICAL_AND:
+        {
+            L = toBool(L);
+            R = toBool(R);
+            m_lastValue = builder.CreateAnd(L, R, "andtmp");
+            break;
+        }
+        case TokenType::LOGICAL_OR:
+        {
+            L = toBool(L);
+            R = toBool(R);
+            m_lastValue = builder.CreateOr(L, R, "ortmp");
+            break;
+        }
+
         default:
-            throw std::runtime_error("Unsupported binary operator");
+            throw std::runtime_error("Unsupported binary operator in codegen");
+    }
+}
+
+void CodeGenVisitor::visit(const UnaryOpNode& node)
+{
+    auto& builder = m_cg.getBuilder();
+
+    node.operand->accept(*this);
+    llvm::Value* value = m_lastValue;
+
+    switch (node.op)
+    {
+        case TokenType::MINUS:   // Arithmetic negation
+            m_lastValue = builder.CreateNeg(value, "negtmp");
+            break;
+
+        case TokenType::NOT:     // Bitwise NOT for i1 (bool) or i32
+            m_lastValue = builder.CreateNot(value, "nottmp");
+            break;
+
+        default:
+            throw std::runtime_error("Unsupported unary operator in codegen");
     }
 }
 
@@ -110,27 +169,6 @@ void CodeGenVisitor::visit(const BlockNode& node)
     m_cg.popScope();
 }
 
-void CodeGenVisitor::visit(const UnaryOpNode& node)
-{
-    auto& builder = m_cg.getBuilder();
-
-    node.operand->accept(*this);
-    llvm::Value* value = m_lastValue;
-
-    switch(node.op)
-    {
-        case TokenType::MINUS:
-            m_lastValue = builder.CreateNeg(value, "negtmp");
-            break;
-
-        case TokenType::NOT:
-            m_lastValue = builder.CreateNot(value, "nottmp");
-            break;
-
-        default:
-            throw std::runtime_error("Unsupported unary operator");
-    }
-}
 
 void CodeGenVisitor::visit(const IfNode& node)
 {
@@ -291,6 +329,23 @@ void CodeGenVisitor::visit(const CallNode& node)
 
     m_lastValue =
         builder.CreateCall(function, args, "calltmp");
+}
+
+// Convert int/bool to LLVM i1
+llvm::Value* CodeGenVisitor::toBool(llvm::Value* val)
+{
+    // this function is used to convert int or bool values to i1 (LLVM's boolean type)
+    // it helps to support both int and bool types in logical operations and conditions
+    auto& builder = m_cg.getBuilder();
+
+    if (val->getType()->isIntegerTy(1))
+        return val;
+
+    return builder.CreateICmpNE(
+        val,
+        llvm::ConstantInt::get(val->getType(), 0),
+        "tobool"
+    );
 }
 
 void CodeGenVisitor::generate(const std::vector<std::unique_ptr<ASTNode>>& program)

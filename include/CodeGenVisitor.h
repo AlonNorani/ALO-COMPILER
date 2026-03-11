@@ -31,6 +31,7 @@ public:
 private:
     CodeGenerator& m_cg;
     llvm::Value* m_lastValue;
+    llvm::Value* toBool(llvm::Value* val);
 };
 
 #endif

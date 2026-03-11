@@ -55,7 +55,14 @@ void SemanticAnalyzer::visit(const BinaryOpNode& node)
         {
             if (leftType != VarType::INT || rightType != VarType::INT)
                 throw std::runtime_error("Arithmetic operations require integers");
-
+            
+            if (node.op == TokenType::SLASH) {
+                if(auto literal = dynamic_cast<const NumberNode*>(node.right.get())) {
+                    if(literal->value == 0) {
+                        throw std::runtime_error("Division by zero");
+                    }
+                }
+            }
             m_currentType = VarType::INT;
             break;
         }

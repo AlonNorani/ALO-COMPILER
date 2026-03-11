@@ -1,5 +1,4 @@
 fn main() -> void {
     let x = 5;
-    let y = 0;
-    let z = x / y;
+    let z = x / 0;
 }
