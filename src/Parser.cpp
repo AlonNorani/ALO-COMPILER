@@ -43,7 +43,13 @@ void Parser::advance()
 }
 
 std::unique_ptr<ASTNode> Parser::parseStatement() {
-    if(currentToken.type == TokenType::FN) {
+    if(currentToken.type == TokenType::PRINT_MACRO) {
+        return parsePrint(false);
+    }
+    else if(currentToken.type == TokenType::PRINTLN_MACRO) {
+        return parsePrint(true);
+    }
+    else if(currentToken.type == TokenType::FN) {
         return parseFunction();
     }
     else if(currentToken.type == TokenType::RETURN) 
@@ -440,3 +446,14 @@ std::unique_ptr<ASTNode> Parser::parseReturnStatement()
 
     return std::make_unique<ReturnNode>(std::move(expr));
 }
+
+std::unique_ptr<ASTNode> Parser::parsePrint(bool newline)
+{
+    expect(newline ? TokenType::PRINTLN_MACRO : TokenType::PRINT_MACRO, "Expected 'print!' or 'println!'");
+    expect(TokenType::LPAREN, "Expected '(' after print macro");
+    auto expr = parseExpression();
+    expect(TokenType::RPAREN, "Expected ')' after print expression");
+    expect(TokenType::SEMICOLON, "Expected ';' after print statement");
+    return std::make_unique<PrintNode>(std::move(expr), newline);
+}
+

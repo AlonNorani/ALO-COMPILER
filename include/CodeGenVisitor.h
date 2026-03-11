@@ -27,6 +27,7 @@ public:
     void visit(const FunctionNode& node) override;
     void visit(const ReturnNode& node) override;
     void visit(const CallNode& node) override;
+    void visit(const PrintNode& node) override;
 
 private:
     CodeGenerator& m_cg;

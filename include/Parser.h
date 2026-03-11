@@ -43,6 +43,8 @@ private:
     std::vector<Parameter> parseParameterList();
     std::string parseType();
     std::unique_ptr<ASTNode> parseReturnStatement();
+    // print
+    std::unique_ptr<ASTNode> parsePrint(bool newline);
 
 
 

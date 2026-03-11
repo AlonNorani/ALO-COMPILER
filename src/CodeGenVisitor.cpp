@@ -331,6 +331,36 @@ void CodeGenVisitor::visit(const CallNode& node)
         builder.CreateCall(function, args, "calltmp");
 }
 
+void CodeGenVisitor::visit(const PrintNode& node) // TODO: finish this function and support strings
+{
+    //  generate the value of the expression
+    node.expression->accept(*this);
+    llvm::Value* value = m_lastValue;
+
+    // If it's bool (i1), extend to i32 for printf
+    if (value->getType()->isIntegerTy(1)) {
+        value = m_cg.getBuilder().CreateZExt(value, m_cg.getBuilder().getInt32Ty());
+    }
+
+    // Choose format string depending on newline
+    const char* fmtStr = node.newline ? "%d\n" : "%d";
+
+    // Create LLVM global string pointer
+    llvm::Value* fmtGlobal = m_cg.getBuilder().CreateGlobalStringPtr(fmtStr);
+
+    // 4. Get printf function
+    llvm::Function* printfFunc;
+    if (!(printfFunc = m_cg.getModule().getFunction("printf"))) {
+        std::vector<llvm::Type*> printfArgs{ m_cg.getBuilder().getInt8PtrTy() };
+        llvm::FunctionType* printfType =
+            llvm::FunctionType::get(m_cg.getBuilder().getInt32Ty(), printfArgs, true);
+        printfFunc = llvm::Function::Create(printfType, llvm::Function::ExternalLinkage, "printf", &m_cg.getModule());
+    }
+
+    // 5. Call printf
+    m_lastValue = m_cg.getBuilder().CreateCall(printfFunc, { fmtGlobal, value });
+}
+
 // Convert int/bool to LLVM i1
 llvm::Value* CodeGenVisitor::toBool(llvm::Value* val)
 {

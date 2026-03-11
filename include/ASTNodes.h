@@ -389,4 +389,38 @@ struct CallNode : ASTNode {
         return 0; // default for unknown functions
     }
 };
+
+// print / println macros
+struct PrintNode : ASTNode {
+    std::unique_ptr<ASTNode> expression;
+    bool newline; // true = println!, false = print!
+
+    PrintNode(std::unique_ptr<ASTNode> expr, bool nl)
+        : expression(std::move(expr)), newline(nl) {}
+
+    ACCEPT_VISITOR
+
+    void print(int indent = 0) const override {
+        std::cout << std::string(indent, ' ')
+                  << (newline ? "Println!" : "Print!") << "\n";
+
+        if (expression) {
+            expression->print(indent + 2);
+        }
+    }
+
+    int evaluate() const override {
+        if (expression) {
+            int val = expression->evaluate();
+
+            if (newline)
+                std::cout << val << std::endl;
+            else
+                std::cout << val;
+        }
+
+        return 0; // print returns void
+    }
+};
+
 #endif

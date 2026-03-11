@@ -324,3 +324,20 @@ void SemanticAnalyzer::visit(const CallNode& node)
     m_currentType = info.returnType;
 }
 
+void SemanticAnalyzer::visit(const PrintNode& node)
+{
+    if (!node.expression) {
+        throw std::runtime_error("Print/Println requires an expression");
+    }
+
+    // Analyze the expression
+    node.expression->accept(*this);
+
+    // Only allow int or bool for now
+    if (m_currentType != VarType::INT && m_currentType != VarType::BOOL) {
+        throw std::runtime_error("Print/Println only supports int or bool expressions");
+    }
+
+    // Print statements themselves are void
+    m_currentType = VarType::VOID;
+}

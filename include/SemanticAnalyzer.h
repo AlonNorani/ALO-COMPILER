@@ -67,6 +67,8 @@ public:
     virtual void visit(const ReturnNode& node) override;
     virtual void visit(const CallNode& node) override;
 
+    // print
+    virtual void visit(const PrintNode& node) override;
    
 
 private:
