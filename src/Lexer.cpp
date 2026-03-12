@@ -139,6 +139,7 @@ Token Lexer::lexIdentifierOrKeyword()
     if (currentChar() == '!') {
         if (value == "print")
         {
+            advance(); // consume '!'
             return Token{
                 TokenType::PRINT_MACRO,
                 value + "!",
@@ -148,6 +149,7 @@ Token Lexer::lexIdentifierOrKeyword()
         }
         else if (value == "println")
         {
+            advance(); // consume '!'
             return Token{
                 TokenType::PRINTLN_MACRO,
                 value + "!",
