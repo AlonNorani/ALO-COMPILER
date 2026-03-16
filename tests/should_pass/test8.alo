@@ -1,4 +1,6 @@
-let mut x = 1;
-while (x < 5) {
-    x = x + 1;
+fn main() -> void {
+    let mut x = 1;
+    while (x < 5) {
+        x = x + 1;
+    }
 }

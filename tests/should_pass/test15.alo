@@ -1,5 +1,7 @@
-let x = 5;
-{
-    let mut y = x + 2;
-    y = y + 3;
+fn main() -> void {
+    let x = 5;
+    {
+        let mut y = x + 2;
+        y = y + 3;
+    }
 }

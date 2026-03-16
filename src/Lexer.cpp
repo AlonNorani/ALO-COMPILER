@@ -135,6 +135,30 @@ Token Lexer::lexIdentifierOrKeyword()
         value += currentChar();
         advance();
     }
+     // check for !
+    if (currentChar() == '!') {
+        if (value == "print")
+        {
+            advance(); // consume '!'
+            return Token{
+                TokenType::PRINT_MACRO,
+                value + "!",
+                startLine,
+                startColumn
+            };  
+        }
+        else if (value == "println")
+        {
+            advance(); // consume '!'
+            return Token{
+                TokenType::PRINTLN_MACRO,
+                value + "!",
+                startLine,
+                startColumn
+            };  
+        }
+    }
+
     // check if the identifier is a keyword
     auto keywordIt = keywords.find(value);
     if (keywordIt != keywords.end()) {

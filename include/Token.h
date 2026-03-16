@@ -25,6 +25,7 @@ enum class TokenType
     LET, // let is for variable declaration
     MUT, // mut is for mutable variable declaration
     FN,
+    ARROW, // for function return type annotation
     IF,
     ELSE,
     RETURN,
@@ -56,6 +57,9 @@ enum class TokenType
     // control flow
     WHILE,
     FOR,          
+    // printing
+    PRINT_MACRO,
+    PRINTLN_MACRO,
 
 
 };
@@ -78,7 +82,9 @@ static std::unordered_map<std::string, TokenType> keywords = {
     {"true", TokenType::TRUE},
     {"false", TokenType::FALSE},
     {"while", TokenType::WHILE},
-    {"for", TokenType::FOR}
+    {"for", TokenType::FOR},
+    {"print!", TokenType::PRINT_MACRO},
+    {"println!", TokenType::PRINTLN_MACRO}
 };
 static std::unordered_map<char, TokenType> singleCharOperatorTokens = {
     {'+', TokenType::PLUS},
@@ -98,6 +104,7 @@ static std::unordered_map<std::string, TokenType> doubleCharOperatorTokens = {
     {">=", TokenType::GREATER_EQUAL},
     {"&&", TokenType::LOGICAL_AND},
     {"||", TokenType::LOGICAL_OR},
+    {"->", TokenType::ARROW},
 };
 static std::unordered_map<char, TokenType> delimiterTokens = {
     {'(', TokenType::LPAREN},

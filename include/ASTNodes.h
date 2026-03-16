@@ -10,7 +10,11 @@
 #include "Token.h"
 
 struct ASTVisitor;
-
+struct Parameter
+{
+    std::string type;
+    std::string name;
+};
 // Convert TokenType to readable operator string
 inline std::string tokenTypeToString(TokenType type) {
     switch (type) {
@@ -27,6 +31,7 @@ inline std::string tokenTypeToString(TokenType type) {
         case TokenType::LOGICAL_AND: return "&&";
         case TokenType::LOGICAL_OR: return "||";
         case TokenType::NOT: return "!";
+        case TokenType::ARROW: return "->";
         default: return "UnknownOp";
     }
 }
@@ -49,7 +54,6 @@ struct ASTNode {
 void accept(ASTVisitor& visitor) const override { visitor.visit(*this); }
 
 // literals
-
 struct NumberNode : ASTNode {
     int value;
 
@@ -193,6 +197,11 @@ struct LetNode : ASTNode {
             value->print(indent + 4);
         }
     }
+    int evaluate() const override {
+        if (value)
+            return value->evaluate();
+        return 0; // default uninitialized value
+    }
 };
 
 
@@ -283,6 +292,134 @@ struct WhileNode : ASTNode {
 
         std::cout << std::string(indent + 2, ' ') << "Body:\n";
         body->print(indent + 4);
+    }
+};
+
+
+// function definitions and calls 
+struct FunctionNode : ASTNode {
+    std::string name;
+    std::vector<Parameter> parameters;
+    std::string returnType;
+    std::unique_ptr<BlockNode> body;
+
+    FunctionNode(const std::string& n,
+                 std::vector<Parameter> params,
+                 const std::string& retType,
+                 std::unique_ptr<BlockNode> b)
+        : name(n), parameters(std::move(params)), returnType(retType), body(std::move(b)) {}
+
+    ACCEPT_VISITOR
+
+    void print(int indent = 0) const override {
+        std::cout << std::string(indent, ' ')
+                  << "Function: " << name << "\n";
+
+        if (!parameters.empty()) {
+            std::cout << std::string(indent + 2, ' ')
+                      << "Parameters:\n";
+            for (const auto& param : parameters) {
+                std::cout << std::string(indent + 4, ' ')
+                          << param.name << ": " << param.type << "\n";
+            }
+        }
+
+        if (!returnType.empty()) {
+            std::cout << std::string(indent + 2, ' ')
+                      << "Return Type: " << returnType << "\n";
+        }
+
+        if (body) {
+            std::cout << std::string(indent + 2, ' ')
+                      << "Body:\n";
+            body->print(indent + 4);
+        }
+    }
+};
+
+struct ReturnNode : ASTNode {
+    std::unique_ptr<ASTNode> expression;
+
+    ReturnNode(std::unique_ptr<ASTNode> expr)
+        : expression(std::move(expr)) {}
+
+    ACCEPT_VISITOR
+
+    void print(int indent = 0) const override {
+        std::cout << std::string(indent, ' ') << "Return:\n";
+        if (expression) {
+            expression->print(indent + 2);
+        }
+    }
+    int evaluate() const override {
+        if (expression)
+            return expression->evaluate();
+        return 0; // default void return
+    }
+};
+
+struct CallNode : ASTNode {
+    std::string functionName;
+    std::vector<std::unique_ptr<ASTNode>> arguments;
+
+    CallNode(const std::string& name, std::vector<std::unique_ptr<ASTNode>> args)
+        : functionName(name), arguments(std::move(args)) {}
+
+    ACCEPT_VISITOR
+
+    void print(int indent = 0) const override {
+        std::cout << std::string(indent, ' ')
+                  << "Call: " << functionName << "\n";
+
+        if (!arguments.empty()) {
+            std::cout << std::string(indent + 2, ' ')
+                      << "Arguments:\n";
+            for (const auto& arg : arguments) {
+                arg->print(indent + 4);
+            }
+        }
+    }
+    int evaluate() const override {
+        // For testing, we can only evaluate built-in functions like "print"
+        if (functionName == "print" && !arguments.empty()) {
+            int val = arguments[0]->evaluate();
+            std::cout << "Print: " << val << std::endl;
+            return 0; // print returns void
+        }
+        return 0; // default for unknown functions
+    }
+};
+
+// print / println macros
+struct PrintNode : ASTNode {
+    std::unique_ptr<ASTNode> expression;
+    bool newline; // true = println!, false = print!
+
+    PrintNode(std::unique_ptr<ASTNode> expr, bool nl)
+        : expression(std::move(expr)), newline(nl) {}
+
+    ACCEPT_VISITOR
+
+    void print(int indent = 0) const override {
+        std::cout << std::string(indent, ' ')
+                  << (newline ? "Println!" : "Print!") << "\n";
+
+        if (expression) {
+            expression->print(indent + 2);
+        }
+    }
+
+    int evaluate() const override {
+        if (expression) {
+            int val = expression->evaluate();
+
+            if (newline)
+                std::cout << val << std::endl;
+            else
+                std::cout << val;
+        }
+
+        return 0; // print returns void
     }
 };
 

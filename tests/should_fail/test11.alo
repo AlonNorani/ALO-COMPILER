@@ -1,3 +1,5 @@
-let x = true;
-if (x + 1) {
+fn main() -> void {
+    let x = true;
+    if (x + 1) {
+    }
 }

@@ -1,0 +1,5 @@
+fn main() -> void {
+    let x = 5;
+    let y = "hello";
+    let z = x + y;
+}

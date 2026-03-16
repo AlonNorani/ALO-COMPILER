@@ -55,7 +55,14 @@ void SemanticAnalyzer::visit(const BinaryOpNode& node)
         {
             if (leftType != VarType::INT || rightType != VarType::INT)
                 throw std::runtime_error("Arithmetic operations require integers");
-
+            
+            if (node.op == TokenType::SLASH) {
+                if(auto literal = dynamic_cast<const NumberNode*>(node.right.get())) {
+                    if(literal->value == 0) {
+                        throw std::runtime_error("Division by zero");
+                    }
+                }
+            }
             m_currentType = VarType::INT;
             break;
         }
@@ -185,6 +192,45 @@ void SemanticAnalyzer::visit(const UnaryOpNode& node)
     }
 }
 
+void SemanticAnalyzer::visit(const FunctionNode& node)
+{
+    if(m_functionsTable.find(node.name) != m_functionsTable.end()) {
+        throw std::runtime_error("Function already declared: " + node.name);
+    }
+
+    FunctionInfo info;
+
+    for(auto& param : node.parameters)
+        info.paramTypes.push_back(stringToVarType(param.type));
+
+    info.returnType = stringToVarType(node.returnType);
+
+    m_functionsTable[node.name] = info;
+
+    VarType returnType = info.returnType;
+
+    m_currentFunctionReturnType = returnType;
+    m_foundReturn = false;
+
+    m_insideFunction = true;
+    enterScope();
+
+    for(auto& param : node.parameters)
+    {
+        declareVariable(param.name, stringToVarType(param.type), false);
+    }
+
+    node.body->accept(*this);
+
+    exitScope();
+    m_insideFunction = false;
+
+    if(returnType != VarType::VOID && !m_foundReturn)
+    {
+        throw std::runtime_error("Function '" + node.name + "' must return a value");
+    }
+}
+
 void SemanticAnalyzer::enterScope()
 {
     m_symbolTable.emplace_back(); // Add a new scope, just an empty map
@@ -209,6 +255,18 @@ bool SemanticAnalyzer::declareVariable(const std::string& name, VarType type, bo
     return true;
 }
 
+VarType SemanticAnalyzer::stringToVarType(const std::string& typeStr)
+{
+
+    if (typeStr == "int") return VarType::INT;
+    if (typeStr == "float") return VarType::FLOAT;
+    if (typeStr == "string") return VarType::STRING;
+    if (typeStr == "bool") return VarType::BOOL;
+    if (typeStr == "void") return VarType::VOID;
+    throw std::runtime_error("Unknown type: " + typeStr);
+
+}
+
 std::optional<std::reference_wrapper<VariableInfo>> SemanticAnalyzer::lookupVariable(const std::string& name) {
     // search from inner scope to outer scope
     for (auto it = m_symbolTable.rbegin(); it != m_symbolTable.rend(); ++it) {
@@ -220,3 +278,66 @@ std::optional<std::reference_wrapper<VariableInfo>> SemanticAnalyzer::lookupVari
     return std::nullopt; // not found
 }
 
+void SemanticAnalyzer::visit(const ReturnNode& node)
+{
+    if(!m_insideFunction)
+    {
+        throw std::runtime_error("Return statement outside function");
+    }
+    node.expression->accept(*this);
+
+    if(m_currentType != m_currentFunctionReturnType)
+    {
+        throw std::runtime_error("Return type mismatch");
+    }
+
+    m_foundReturn = true;
+}
+
+void SemanticAnalyzer::visit(const CallNode& node)
+{
+    // Check that the function exists
+    auto it = m_functionsTable.find(node.functionName);
+    if(it == m_functionsTable.end()) {
+        throw std::runtime_error("Call to undefined function: " + node.functionName);
+    }
+
+    const FunctionInfo& info = it->second;
+
+    // Check argument count
+    if(node.arguments.size() != info.paramTypes.size()) {
+        throw std::runtime_error("Function '" + node.functionName +
+                                 "' expects " + std::to_string(info.paramTypes.size()) +
+                                 " arguments, got " + std::to_string(node.arguments.size()));
+    }
+
+    // Analyze arguments and check types
+    for(size_t i = 0; i < node.arguments.size(); i++) {
+        node.arguments[i]->accept(*this);
+        if(m_currentType != info.paramTypes[i]) {
+            throw std::runtime_error("Type mismatch for argument " + std::to_string(i+1) +
+                                     " in call to function '" + node.functionName + "'");
+        }
+    }
+
+    // The type of a function call expression is the function's return type
+    m_currentType = info.returnType;
+}
+
+void SemanticAnalyzer::visit(const PrintNode& node)
+{
+    if (!node.expression) {
+        throw std::runtime_error("Print/Println requires an expression");
+    }
+
+    // Analyze the expression
+    node.expression->accept(*this);
+
+    // Only allow int or bool for now
+    if (m_currentType != VarType::INT && m_currentType != VarType::BOOL) {
+        throw std::runtime_error("Print/Println only supports int or bool expressions");
+    }
+
+    // Print statements themselves are void
+    m_currentType = VarType::VOID;
+}

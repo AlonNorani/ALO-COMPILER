@@ -5,6 +5,8 @@
 #include "Lexer.h"
 #include "Parser.h"
 #include "SemanticAnalyzer.h"
+#include "CodeGenerator.h"
+#include "CodeGenVisitor.h"
 
 std::string readFile(const char* filename)
 {
@@ -61,6 +63,28 @@ void checkSemanticAnalyzer(const std::string& source)
 
     std::cout << "Semantic analysis completed successfully." << std::endl;
 }
+
+void checkCodeGen(const std::string& source)
+{
+    Lexer lexer(source);
+    Parser parser(lexer);
+    auto ast = parser.parseProgram();
+
+    SemanticAnalyzer analyzer;
+    analyzer.analyze(ast); // ensure semantic correctness before codegen
+
+    CodeGenerator codeGen;
+    CodeGenVisitor visitor(codeGen);
+    visitor.generate(ast); // generate LLVM IR from AST
+    codeGen.printIR(); // print the generated LLVM IR to stdout
+
+
+    codeGen.writeIRToFile("output.ll"); // write the generated IR to a file 
+
+    system("llc -filetype=obj output.ll -o output.o");
+    system("gcc -no-pie output.o -o output");
+    std::cout << "Code generation completed successfully." << std::endl;
+}
 int main(int argc, char* argv[])
 {
     if (argc < 2) {
@@ -78,7 +102,10 @@ int main(int argc, char* argv[])
         // checkParser(source);
 
         // Uncomment when you want semantic analysis debugging
-        checkSemanticAnalyzer(source);
+        // checkSemanticAnalyzer(source);
+
+        // Uncomment when you want code generation debugging
+        checkCodeGen(source);
     }
     catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << std::endl;

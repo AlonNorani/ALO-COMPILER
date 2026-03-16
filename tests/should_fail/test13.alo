@@ -1,5 +1,7 @@
-let x = 5;
-{
-    let x = true;
+fn main() -> void {
+    let x = 5;
+    {
+        let x = true;
+    }
+    x = true;
 }
-x = true;

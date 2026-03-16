@@ -43,7 +43,20 @@ void Parser::advance()
 }
 
 std::unique_ptr<ASTNode> Parser::parseStatement() {
-    if(currentToken.type == TokenType::LET) {
+    if(currentToken.type == TokenType::PRINT_MACRO) {
+        return parsePrint(false);
+    }
+    else if(currentToken.type == TokenType::PRINTLN_MACRO) {
+        return parsePrint(true);
+    }
+    else if(currentToken.type == TokenType::FN) {
+        return parseFunction();
+    }
+    else if(currentToken.type == TokenType::RETURN) 
+    {
+        return parseReturnStatement();
+    }
+    else if(currentToken.type == TokenType::LET) {
         return parseLetStatement();
     }
     else if(currentToken.type == TokenType::IDENTIFIER)
@@ -156,25 +169,47 @@ std::unique_ptr<ASTNode> Parser::parseFactor() {
         advance();
         return std::make_unique<NumberNode>(val);
     }
+
     if(currentToken.type == TokenType::IDENTIFIER) {
         std::string name = currentToken.lexeme;
         advance();
+
+        // check for function call
+        if(currentToken.type == TokenType::LPAREN) {
+            advance(); // consume '('
+            std::vector<std::unique_ptr<ASTNode>> args;
+
+            if(currentToken.type != TokenType::RPAREN) { // not empty argument list
+                do {
+                    args.push_back(parseExpression()); // parse any expression as argument
+                } while(match(TokenType::COMMA));
+            }
+
+            expect(TokenType::RPAREN, "Expected ')' after function call arguments");
+            return std::make_unique<CallNode>(name, std::move(args));
+        }
+
+        // normal variable
         return std::make_unique<VariableNode>(name);
     }
+
     if(currentToken.type == TokenType::LPAREN) {
         advance();
         auto expr = parseExpression();
         expect(TokenType::RPAREN, "Expected ')'");
         return expr;
     }
+
     if(currentToken.type == TokenType::TRUE) {
         advance();
         return std::make_unique<BoolNode>(true);
     }
+
     if(currentToken.type == TokenType::FALSE) {
         advance();
         return std::make_unique<BoolNode>(false);
     }
+
     throw std::runtime_error("Syntax Error: Expected a factor");
 }
 
@@ -288,6 +323,77 @@ std::unique_ptr<WhileNode> Parser::parseWhileStatement() {
     );
 }
 
+std::unique_ptr<FunctionNode> Parser::parseFunction()
+{
+    expect(TokenType::FN, "Expected 'fn'");
+
+    if(currentToken.type != TokenType::IDENTIFIER)
+        throw std::runtime_error("Expected function name");
+
+    std::string name = currentToken.lexeme;
+    advance();
+
+    expect(TokenType::LPAREN, "Expected '(' after function name");
+
+    auto params = parseParameterList();
+
+    expect(TokenType::RPAREN, "Expected ')' after parameters");
+
+    expect(TokenType::ARROW, "Expected '->' after parameters");
+
+    std::string returnType = parseType();
+
+    auto body = parseBlock();
+
+    return std::make_unique<FunctionNode>(
+        name,
+        std::move(params),
+        returnType,
+        std::move(body)
+    );
+}
+
+std::vector<Parameter> Parser::parseParameterList()
+{
+    std::vector<Parameter> params;
+    if(currentToken.type == TokenType::RPAREN)
+        return params;
+
+    while(true)
+    {
+        if(currentToken.type != TokenType::IDENTIFIER)
+            throw std::runtime_error("Expected parameter name");
+        std::string name = currentToken.lexeme;
+        advance();
+        expect(TokenType::COLON, "Expected ':' after parameter name");
+        std::string type = parseType();
+
+        params.push_back({type, name});
+
+        if(!match(TokenType::COMMA))
+            break;
+    }
+
+    return params;
+}
+
+std::string Parser::parseType()
+{
+    if(currentToken.type != TokenType::INT &&
+       currentToken.type != TokenType::BOOL &&
+       currentToken.type != TokenType::FLOAT &&
+       currentToken.type != TokenType::STRING_TYPE &&
+       currentToken.type != TokenType::VOID)
+    {
+        throw std::runtime_error("Expected type");
+    }
+
+    std::string type = currentToken.lexeme;
+    advance();
+
+    return type;
+}
+
 std::unique_ptr<ASTNode> Parser::parseComparison() {
     auto left = parseAdditive();
 
@@ -329,3 +435,25 @@ std::unique_ptr<ASTNode> Parser::parseUnary() {
 
     return parseFactor();
 }
+
+std::unique_ptr<ASTNode> Parser::parseReturnStatement()
+{
+    expect(TokenType::RETURN, "Expected 'return'");
+
+    auto expr = parseExpression();
+
+    expect(TokenType::SEMICOLON, "Expected ';' after return");
+
+    return std::make_unique<ReturnNode>(std::move(expr));
+}
+
+std::unique_ptr<ASTNode> Parser::parsePrint(bool newline)
+{
+    expect(newline ? TokenType::PRINTLN_MACRO : TokenType::PRINT_MACRO, "Expected 'print!' or 'println!'");
+    expect(TokenType::LPAREN, "Expected '(' after print macro");
+    auto expr = parseExpression();
+    expect(TokenType::RPAREN, "Expected ')' after print expression");
+    expect(TokenType::SEMICOLON, "Expected ';' after print statement");
+    return std::make_unique<PrintNode>(std::move(expr), newline);
+}
+

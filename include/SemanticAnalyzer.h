@@ -26,8 +26,14 @@ struct VariableInfo {
     bool mutableFlag;
 };
 
-using SymbolTable = std::vector<std::unordered_map<std::string, VariableInfo>>;
+struct FunctionInfo
+{
+    std::vector<VarType> paramTypes;
+    VarType returnType;
+};
 
+using SymbolTable = std::vector<std::unordered_map<std::string, VariableInfo>>;
+using FunctionsTable = std::unordered_map<std::string, FunctionInfo>;
 class SemanticAnalyzer : public ASTVisitor
 {
 public:
@@ -56,12 +62,22 @@ public:
     virtual void visit(const IfNode& node) override;
     virtual void visit(const WhileNode& node) override;
 
+    // functions
+    virtual void visit(const FunctionNode& node) override;
+    virtual void visit(const ReturnNode& node) override;
+    virtual void visit(const CallNode& node) override;
+
+    // print
+    virtual void visit(const PrintNode& node) override;
    
 
 private:
     VarType m_currentType; // to keep track of the current expression type during analysis
+    VarType m_currentFunctionReturnType = VarType::VOID; // to track the return type of the current function being analyzed
+    bool m_foundReturn = false; // to track if a return statement was found in a non-void function
+    bool m_insideFunction = false;
     SymbolTable m_symbolTable;
-
+    FunctionsTable m_functionsTable;
     // scope management
     void enterScope();
     void exitScope();
@@ -69,6 +85,7 @@ private:
     // symbol table operations
     bool declareVariable(const std::string& name, VarType type, bool mutableFlag = false);
 
+    VarType stringToVarType(const std::string& typeStr);
     std::optional<std::reference_wrapper<VariableInfo>> 
     lookupVariable(const std::string& name);
 };

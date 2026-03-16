@@ -11,6 +11,10 @@ struct IfNode;
 struct WhileNode;
 struct BoolNode;
 struct LetNode;
+struct FunctionNode;
+struct ReturnNode;
+struct CallNode;
+struct PrintNode;
 
 struct ASTVisitor {
     virtual ~ASTVisitor() = default;
@@ -25,6 +29,10 @@ struct ASTVisitor {
     virtual void visit(const WhileNode& node) = 0;
     virtual void visit(const BoolNode& node) = 0;
     virtual void visit(const LetNode& node) = 0;
+    virtual void visit(const FunctionNode& node) = 0;
+    virtual void visit(const ReturnNode& node) = 0;
+    virtual void visit(const CallNode& node) = 0;
+    virtual void visit(const PrintNode& node) = 0;
 };
 
 #endif
