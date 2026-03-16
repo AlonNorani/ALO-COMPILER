@@ -17,6 +17,8 @@ out/
 *.so
 *.a
 *.lib
+*.ll
+
 
 # Ignore CMake artifacts (if they leak out of build/)
 CMakeCache.txt

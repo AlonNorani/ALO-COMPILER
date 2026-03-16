@@ -12,6 +12,8 @@
 #include <llvm/IR/Function.h>
 #include <llvm/IR/Value.h>
 #include <llvm/IR/Instructions.h>
+#include <llvm/Support/raw_ostream.h>
+#include <system_error>
 
 // Scopes table: stack of scopes
 // Each variable maps to its stack allocation (AllocaInst)
@@ -48,6 +50,9 @@ public:
 
     // Debug
     void printIR();
+
+    // Write the generated IR to a file (for debugging)
+    void writeIRToFile(const std::string& filename);
 
 private:
 

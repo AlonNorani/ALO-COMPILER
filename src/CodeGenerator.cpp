@@ -128,3 +128,16 @@ void CodeGenerator::printIR()
 {
     m_module.print(llvm::outs(), nullptr);
 }
+
+
+void CodeGenerator::writeIRToFile(const std::string& filename)
+{
+    std::error_code EC;
+    llvm::raw_fd_ostream file(filename, EC);
+
+    if (EC) {
+        throw std::runtime_error("Failed to open IR output file");
+    }
+
+    m_module.print(file, nullptr);
+}

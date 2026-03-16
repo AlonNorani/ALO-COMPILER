@@ -78,6 +78,11 @@ void checkCodeGen(const std::string& source)
     visitor.generate(ast); // generate LLVM IR from AST
     codeGen.printIR(); // print the generated LLVM IR to stdout
 
+
+    codeGen.writeIRToFile("output.ll"); // write the generated IR to a file 
+
+    system("llc -filetype=obj output.ll -o output.o");
+    system("gcc -no-pie output.o -o output");
     std::cout << "Code generation completed successfully." << std::endl;
 }
 int main(int argc, char* argv[])
