@@ -1,4 +1,6 @@
 fn main() -> void {
     let x = 5;
     let y = 10;
+    println!(x);
+    println!("hello world");
 }

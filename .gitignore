@@ -3,24 +3,34 @@
 *.code-workspace
 .history/
 
-# --- C++ & CMake (CRITICAL) ---
-# Ignore the entire build directory (where the magic happens)
+# --- Build directories ---
 build/
 bin/
 out/
 
-# Ignore compiled files (in case you compile in root)
+# --- Generated binaries ---
+output
+a.out
+
+# --- Compiled objects ---
 *.o
 *.obj
-*.out
+
+# --- Executables ---
 *.exe
+*.out
+
+# --- Libraries ---
 *.so
 *.a
 *.lib
+
+# --- LLVM / compiler outputs ---
 *.ll
+*.bc
+*.s
 
-
-# Ignore CMake artifacts (if they leak out of build/)
+# --- CMake artifacts ---
 CMakeCache.txt
 CMakeFiles/
 CMakeScripts/
