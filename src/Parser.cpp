@@ -25,8 +25,9 @@ bool Parser::match(TokenType expectedType)
     return false;
 }
 
-void Parser::expect(TokenType expectedType, const std::string& errorMessage)
+Token Parser::expect(TokenType expectedType, const std::string& errorMessage)
 {
+    Token previousToken = currentToken; // store the token that was just matched (or not matched)
     if(!match(expectedType)) {
         throw std::runtime_error(
             "Syntax Error at line " + std::to_string(currentToken.line) +
@@ -34,6 +35,7 @@ void Parser::expect(TokenType expectedType, const std::string& errorMessage)
             ": " + errorMessage
         );
     }
+    return previousToken; // return the token that was just matched
 }
 
 
@@ -170,6 +172,11 @@ std::unique_ptr<ASTNode> Parser::parseFactor() {
         return std::make_unique<NumberNode>(val);
     }
 
+    if(currentToken.type == TokenType::STRING) {
+        std::string val = currentToken.lexeme;
+        advance();
+        return std::make_unique<StringNode>(val);
+    }
     if(currentToken.type == TokenType::IDENTIFIER) {
         std::string name = currentToken.lexeme;
         advance();
@@ -447,13 +454,47 @@ std::unique_ptr<ASTNode> Parser::parseReturnStatement()
     return std::make_unique<ReturnNode>(std::move(expr));
 }
 
+
 std::unique_ptr<ASTNode> Parser::parsePrint(bool newline)
 {
-    expect(newline ? TokenType::PRINTLN_MACRO : TokenType::PRINT_MACRO, "Expected 'print!' or 'println!'");
-    expect(TokenType::LPAREN, "Expected '(' after print macro");
-    auto expr = parseExpression();
-    expect(TokenType::RPAREN, "Expected ')' after print expression");
-    expect(TokenType::SEMICOLON, "Expected ';' after print statement");
-    return std::make_unique<PrintNode>(std::move(expr), newline);
-}
+    expect(newline ? TokenType::PRINTLN_MACRO : TokenType::PRINT_MACRO,
+           "Expected print macro");
 
+    expect(TokenType::LPAREN, "Expected '('");
+
+    std::string format;
+    if (currentToken.type == TokenType::STRING) {
+        format = expect(TokenType::STRING, "Expected format string").lexeme;
+    }
+
+    // Count {} placeholders
+    int placeholderCount = 0;
+    size_t len = format.size();
+    for (size_t i = 0; i < len; i++) {
+        if (format[i] == '{' && i + 1 < len && format[i + 1] == '}') {
+            placeholderCount++;
+            i++;
+        }
+    }
+
+    std::vector<std::unique_ptr<ASTNode>> args;
+    if (placeholderCount > 0) {
+        expect(TokenType::COMMA, "Expected ',' after format string");
+
+        for (int i = 0; i < placeholderCount; i++) {
+            args.push_back(parseExpression());
+            if (i < placeholderCount - 1)
+                expect(TokenType::COMMA, "Expected ',' between arguments");
+        }
+    }
+
+    expect(TokenType::RPAREN, "Expected ')'");
+    expect(TokenType::SEMICOLON, "Expected ';'");
+
+    // Ensure exact argument count
+    if (args.size() != placeholderCount) {
+        throw std::runtime_error("Print argument count does not match placeholders");
+    }
+
+    return std::make_unique<PrintNode>(format, std::move(args), newline);
+}

@@ -3,4 +3,6 @@ fn main() -> void {
     if (x > 3) {
         let y = 1;
     }
+    let y = 7;
+    println!("x + y = {}", x + y);
 }

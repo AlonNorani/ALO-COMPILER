@@ -1,5 +1,11 @@
 fn main() -> void {
-    let x = true;
-    let y = 5;
-    let z = x + y;
+    let mut age = 19;
+    let name = "alon";
+    let mut x = 1;
+    while(x != age)
+    {
+        println!("{}", x);
+        x = x + 1;
+    }
+    println!("my name is {} and i am {} years old", age);
 }

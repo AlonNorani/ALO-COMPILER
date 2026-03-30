@@ -6,6 +6,7 @@
 #include "CodeGenerator.h"
 #include <llvm/IR/Value.h>
 #include <stack>
+#include "SemanticAnalyzer.h"
 
 class CodeGenVisitor : public ASTVisitor
 {
@@ -16,6 +17,7 @@ public:
 
     void visit(const NumberNode& node) override;
     void visit(const BoolNode& node) override;
+    void visit(const StringNode& node) override;
     void visit(const VariableNode& node) override;
     void visit(const BinaryOpNode& node) override;
     void visit(const UnaryOpNode& node) override;
@@ -32,7 +34,12 @@ public:
 private:
     CodeGenerator& m_cg;
     llvm::Value* m_lastValue;
+    VarType m_lastVarType; // track the type of the last evaluated expression for print formatting
     llvm::Value* toBool(llvm::Value* val);
+
+    // Helper to convert our format string with {} to printf format
+    std::string convertFormatString(const std::string& input, const std::vector<VarType>& argTypes, bool newline);
+
 };
 
 #endif

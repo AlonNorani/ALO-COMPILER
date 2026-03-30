@@ -87,6 +87,19 @@ struct BoolNode : ASTNode {
     }
 };
 
+struct StringNode : ASTNode {
+    std::string value;
+
+    StringNode(std::string val) : value(std::move(val)) {}
+
+    ACCEPT_VISITOR
+
+    void print(int indent = 0) const override {
+        std::cout << std::string(indent, ' ')
+                  << "String: \"" << value << "\"\n";
+    }
+};
+
 // expressions
 
 struct BinaryOpNode : ASTNode {
@@ -392,11 +405,15 @@ struct CallNode : ASTNode {
 
 // print / println macros
 struct PrintNode : ASTNode {
-    std::unique_ptr<ASTNode> expression;
-    bool newline; // true = println!, false = print!
 
-    PrintNode(std::unique_ptr<ASTNode> expr, bool nl)
-        : expression(std::move(expr)), newline(nl) {}
+    std::string formatString;
+    std::vector<std::unique_ptr<ASTNode>> args;
+    bool newline;
+
+    PrintNode(std::string fmt,
+              std::vector<std::unique_ptr<ASTNode>> arguments,
+              bool nl)
+        : formatString(std::move(fmt)), args(std::move(arguments)), newline(nl) {}
 
     ACCEPT_VISITOR
 
@@ -404,23 +421,15 @@ struct PrintNode : ASTNode {
         std::cout << std::string(indent, ' ')
                   << (newline ? "Println!" : "Print!") << "\n";
 
-        if (expression) {
-            expression->print(indent + 2);
+        if (!args.empty()) {
+            std::cout << std::string(indent + 2, ' ')
+                        << "Arguments:\n";
+            for (const auto& arg : args) {
+                arg->print(indent + 4);
+            }
         }
     }
 
-    int evaluate() const override {
-        if (expression) {
-            int val = expression->evaluate();
-
-            if (newline)
-                std::cout << val << std::endl;
-            else
-                std::cout << val;
-        }
-
-        return 0; // print returns void
-    }
 };
 
 #endif

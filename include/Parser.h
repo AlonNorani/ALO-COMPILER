@@ -18,7 +18,7 @@ private:
     Lexer& lexer; // reference to a Lexer instance
     Token currentToken;
     bool match(TokenType expectedType);
-    void expect(TokenType expectedType, const std::string& errorMessage);
+    Token expect(TokenType expectedType, const std::string& errorMessage);
     void advance();
 
     // parse functions for different grammar rules

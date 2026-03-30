@@ -42,8 +42,9 @@ public:
     llvm::Value* loadVariable(const std::string& name);
 
     // Allocate variable in function entry block
-    llvm::AllocaInst* createEntryBlockAlloca(llvm::Function* function, const std::string& name);
-
+llvm::AllocaInst* createEntryBlockAlloca(llvm::Function* function,
+                                          const std::string& name,
+                                          llvm::Type* type = nullptr);
     // Function helpers
     llvm::Function* createMainFunction();
     void finishMain();
