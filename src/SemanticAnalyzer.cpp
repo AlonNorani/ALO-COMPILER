@@ -336,11 +336,18 @@ void SemanticAnalyzer::visit(const PrintNode& node)
         arg->accept(*this); // recursively analyze expression
 
         // Only allow int or bool for now
-        if (m_currentType != VarType::INT && m_currentType != VarType::BOOL) {
-            throw std::runtime_error("Print/Println only supports int or bool expressions");
+        if(m_currentType != VarType::INT && m_currentType != VarType::BOOL && m_currentType != VarType::STRING && m_currentType != VarType::FLOAT) { 
+            throw std::runtime_error("Print/Println only supports int, bool, float or string arguments");
         }
     }
 
     // Print statements themselves are void
     m_currentType = VarType::VOID;
 }
+
+void SemanticAnalyzer::visit(const StringNode& node)
+{
+    m_currentType = VarType::STRING;
+}
+
+

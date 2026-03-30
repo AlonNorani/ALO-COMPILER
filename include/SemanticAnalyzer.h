@@ -47,6 +47,7 @@ public:
     // literals
     virtual void visit(const NumberNode& node) override;
     virtual void visit(const BoolNode& node) override;
+    virtual void visit(const StringNode& node) override;
 
     // operations
     virtual void visit(const BinaryOpNode& node) override;

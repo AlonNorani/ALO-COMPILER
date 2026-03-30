@@ -87,6 +87,19 @@ struct BoolNode : ASTNode {
     }
 };
 
+struct StringNode : ASTNode {
+    std::string value;
+
+    StringNode(std::string val) : value(std::move(val)) {}
+
+    ACCEPT_VISITOR
+
+    void print(int indent = 0) const override {
+        std::cout << std::string(indent, ' ')
+                  << "String: \"" << value << "\"\n";
+    }
+};
+
 // expressions
 
 struct BinaryOpNode : ASTNode {

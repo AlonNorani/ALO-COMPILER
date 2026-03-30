@@ -61,25 +61,32 @@ llvm::Value* CodeGenerator::loadVariable(const std::string& name)
     if (!var)
         throw std::runtime_error("Unknown variable: " + name);
 
+    // FIX: load using the alloca's actual allocated type, not hardcoded i32.
+    // This correctly handles int, bool, and pointer (string) variables.
     return m_builder.CreateLoad(
-        m_builder.getInt32Ty(),
+        var->getAllocatedType(),
         var,
         name
     );
 }
 
-llvm::AllocaInst* CodeGenerator::createEntryBlockAlloca(llvm::Function* function, const std::string& name)
+// FIX: added optional llvm::Type* parameter (defaults to i32 in the header).
+// When allocating a string variable the caller passes llvm::PointerType::getUnqual(ctx)
+// so the slot is the right size instead of an i32.
+llvm::AllocaInst* CodeGenerator::createEntryBlockAlloca(llvm::Function* function,
+                                                         const std::string& name,
+                                                         llvm::Type* type)
 {
     llvm::IRBuilder<> tmpBuilder(
         &function->getEntryBlock(),
         function->getEntryBlock().begin()
     );
 
-    return tmpBuilder.CreateAlloca(
-        m_builder.getInt32Ty(),
-        nullptr,
-        name
-    );
+    // If no type was provided fall back to i32 (original behaviour for int/bool)
+    if (!type)
+        type = m_builder.getInt32Ty();
+
+    return tmpBuilder.CreateAlloca(type, nullptr, name);
 }
 
 llvm::Function* CodeGenerator::createMainFunction()

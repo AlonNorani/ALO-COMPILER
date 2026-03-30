@@ -172,6 +172,11 @@ std::unique_ptr<ASTNode> Parser::parseFactor() {
         return std::make_unique<NumberNode>(val);
     }
 
+    if(currentToken.type == TokenType::STRING) {
+        std::string val = currentToken.lexeme;
+        advance();
+        return std::make_unique<StringNode>(val);
+    }
     if(currentToken.type == TokenType::IDENTIFIER) {
         std::string name = currentToken.lexeme;
         advance();
@@ -457,38 +462,39 @@ std::unique_ptr<ASTNode> Parser::parsePrint(bool newline)
 
     expect(TokenType::LPAREN, "Expected '('");
 
-    Token strToken = expect(TokenType::STRING, "Expected format string");
-    std::string format = strToken.lexeme;
-    std::vector<std::unique_ptr<ASTNode>> args;
+    std::string format;
+    if (currentToken.type == TokenType::STRING) {
+        format = expect(TokenType::STRING, "Expected format string").lexeme;
+    }
 
-    // count {} placeholders
+    // Count {} placeholders
     int placeholderCount = 0;
-    size_t formatLength = format.size();
-    for (size_t i = 0; i < formatLength; i++)
-    {
-        if (format[i] == '{' && i + 1 < formatLength && format[i + 1] == '}')
-        {
+    size_t len = format.size();
+    for (size_t i = 0; i < len; i++) {
+        if (format[i] == '{' && i + 1 < len && format[i + 1] == '}') {
             placeholderCount++;
-            i++; // skip '}'
+            i++;
         }
     }
 
-    // parse arguments after comma
-    if (placeholderCount > 0)
-    {
+    std::vector<std::unique_ptr<ASTNode>> args;
+    if (placeholderCount > 0) {
         expect(TokenType::COMMA, "Expected ',' after format string");
 
-        for (int i = 0; i < placeholderCount; i++)
-        {
+        for (int i = 0; i < placeholderCount; i++) {
             args.push_back(parseExpression());
-
-            if (i < placeholderCount - 1)               
+            if (i < placeholderCount - 1)
                 expect(TokenType::COMMA, "Expected ',' between arguments");
         }
     }
 
     expect(TokenType::RPAREN, "Expected ')'");
     expect(TokenType::SEMICOLON, "Expected ';'");
+
+    // Ensure exact argument count
+    if (args.size() != placeholderCount) {
+        throw std::runtime_error("Print argument count does not match placeholders");
+    }
 
     return std::make_unique<PrintNode>(format, std::move(args), newline);
 }
