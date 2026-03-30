@@ -326,16 +326,19 @@ void SemanticAnalyzer::visit(const CallNode& node)
 
 void SemanticAnalyzer::visit(const PrintNode& node)
 {
-    if (!node.expression) {
-        throw std::runtime_error("Print/Println requires an expression");
-    }
+    // If there are no args but format string exists, it's fine
+    // If args exist, analyze them
+    for (auto& arg : node.args) {
+        if (!arg) {
+            throw std::runtime_error("Print/Println argument is null");
+        }
 
-    // Analyze the expression
-    node.expression->accept(*this);
+        arg->accept(*this); // recursively analyze expression
 
-    // Only allow int or bool for now
-    if (m_currentType != VarType::INT && m_currentType != VarType::BOOL) {
-        throw std::runtime_error("Print/Println only supports int or bool expressions");
+        // Only allow int or bool for now
+        if (m_currentType != VarType::INT && m_currentType != VarType::BOOL) {
+            throw std::runtime_error("Print/Println only supports int or bool expressions");
+        }
     }
 
     // Print statements themselves are void

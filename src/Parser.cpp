@@ -25,8 +25,9 @@ bool Parser::match(TokenType expectedType)
     return false;
 }
 
-void Parser::expect(TokenType expectedType, const std::string& errorMessage)
+Token Parser::expect(TokenType expectedType, const std::string& errorMessage)
 {
+    Token previousToken = currentToken; // store the token that was just matched (or not matched)
     if(!match(expectedType)) {
         throw std::runtime_error(
             "Syntax Error at line " + std::to_string(currentToken.line) +
@@ -34,6 +35,7 @@ void Parser::expect(TokenType expectedType, const std::string& errorMessage)
             ": " + errorMessage
         );
     }
+    return previousToken; // return the token that was just matched
 }
 
 
@@ -447,13 +449,46 @@ std::unique_ptr<ASTNode> Parser::parseReturnStatement()
     return std::make_unique<ReturnNode>(std::move(expr));
 }
 
+
 std::unique_ptr<ASTNode> Parser::parsePrint(bool newline)
 {
-    expect(newline ? TokenType::PRINTLN_MACRO : TokenType::PRINT_MACRO, "Expected 'print!' or 'println!'");
-    expect(TokenType::LPAREN, "Expected '(' after print macro");
-    auto expr = parseExpression();
-    expect(TokenType::RPAREN, "Expected ')' after print expression");
-    expect(TokenType::SEMICOLON, "Expected ';' after print statement");
-    return std::make_unique<PrintNode>(std::move(expr), newline);
-}
+    expect(newline ? TokenType::PRINTLN_MACRO : TokenType::PRINT_MACRO,
+           "Expected print macro");
 
+    expect(TokenType::LPAREN, "Expected '('");
+
+    Token strToken = expect(TokenType::STRING, "Expected format string");
+    std::string format = strToken.lexeme;
+    std::vector<std::unique_ptr<ASTNode>> args;
+
+    // count {} placeholders
+    int placeholderCount = 0;
+    size_t formatLength = format.size();
+    for (size_t i = 0; i < formatLength; i++)
+    {
+        if (format[i] == '{' && i + 1 < formatLength && format[i + 1] == '}')
+        {
+            placeholderCount++;
+            i++; // skip '}'
+        }
+    }
+
+    // parse arguments after comma
+    if (placeholderCount > 0)
+    {
+        expect(TokenType::COMMA, "Expected ',' after format string");
+
+        for (int i = 0; i < placeholderCount; i++)
+        {
+            args.push_back(parseExpression());
+
+            if (i < placeholderCount - 1)
+                expect(TokenType::COMMA, "Expected ',' between arguments");
+        }
+    }
+
+    expect(TokenType::RPAREN, "Expected ')'");
+    expect(TokenType::SEMICOLON, "Expected ';'");
+
+    return std::make_unique<PrintNode>(format, std::move(args), newline);
+}

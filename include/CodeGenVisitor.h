@@ -33,6 +33,10 @@ private:
     CodeGenerator& m_cg;
     llvm::Value* m_lastValue;
     llvm::Value* toBool(llvm::Value* val);
+
+    // Helper to convert our format string with {} to printf format
+    std::string convertFormatString(const std::string& input, bool newline);
+
 };
 
 #endif

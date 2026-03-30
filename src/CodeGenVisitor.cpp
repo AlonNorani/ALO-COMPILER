@@ -331,37 +331,43 @@ void CodeGenVisitor::visit(const CallNode& node)
         builder.CreateCall(function, args, "calltmp");
 }
 
-void CodeGenVisitor::visit(const PrintNode& node) // TODO: support strings
+void CodeGenVisitor::visit(const PrintNode& node)
 {
-    node.expression->accept(*this);
-    llvm::Value* value = m_lastValue;
-
     llvm::IRBuilder<>& builder = m_cg.getBuilder();
     llvm::LLVMContext& context = m_cg.getContext();
     llvm::Module& module = m_cg.getModule();
 
-    // bool -> i32 for printf
-    if (value->getType()->isIntegerTy(1)) {
-        value = builder.CreateZExt(value, builder.getInt32Ty());
-    }
-
-    const char* fmtStr = node.newline ? "%d\n" : "%d";
-
+    // Convert format string
+    std::string fmtStr = convertFormatString(node.formatString, node.newline);
     llvm::Value* fmtGlobal = builder.CreateGlobalString(fmtStr, "fmt");
 
+    // Generate LLVM values for each argument
+    std::vector<llvm::Value*> values;
+    for (auto& arg : node.args) {
+        arg->accept(*this); // visit expression
+        llvm::Value* val = m_lastValue;
+
+        // bool -> i32
+        if (val->getType()->isIntegerTy(1))
+            val = builder.CreateZExt(val, builder.getInt32Ty());
+
+        values.push_back(val);
+    }
+
+    // Prepare call args
+    std::vector<llvm::Value*> callArgs;
+    callArgs.push_back(fmtGlobal);
+    callArgs.insert(callArgs.end(), values.begin(), values.end());
+
+    // Get printf function
     llvm::Function* printfFunc = module.getFunction("printf");
-
-    if (!printfFunc)
-    {
-        std::vector<llvm::Type*> printfArgs{ builder.getPtrTy() };
-
-        llvm::FunctionType* printfType =
-            llvm::FunctionType::get(
-                builder.getInt32Ty(),
-                printfArgs,
-                true
-            );
-
+    if (!printfFunc) {
+        std::vector<llvm::Type*> printfArgs{ llvm::PointerType::getUnqual(llvm::Type::getInt8Ty(context))};
+        llvm::FunctionType* printfType = llvm::FunctionType::get(
+            builder.getInt32Ty(),
+            printfArgs,
+            true // variadic
+        );
         printfFunc = llvm::Function::Create(
             printfType,
             llvm::Function::ExternalLinkage,
@@ -370,7 +376,8 @@ void CodeGenVisitor::visit(const PrintNode& node) // TODO: support strings
         );
     }
 
-    m_lastValue = builder.CreateCall(printfFunc, { fmtGlobal, value });
+    // Call printf
+    m_lastValue = builder.CreateCall(printfFunc, callArgs);
 }
 
 // Convert int/bool to LLVM i1
@@ -388,6 +395,21 @@ llvm::Value* CodeGenVisitor::toBool(llvm::Value* val)
         llvm::ConstantInt::get(val->getType(), 0),
         "tobool"
     );
+}
+
+std::string CodeGenVisitor::convertFormatString(const std::string& input, bool newline)
+{
+    std::string result;
+    for (size_t i = 0; i < input.size(); i++) {
+        if (input[i] == '{' && i + 1 < input.size() && input[i + 1] == '}') {
+            result += "%d"; // for now, only integer placeholders
+            i++; // skip '}'
+        } else {
+            result += input[i];
+        }
+    }
+    if (newline) result += "\n";
+    return result;
 }
 
 void CodeGenVisitor::generate(const std::vector<std::unique_ptr<ASTNode>>& program)
