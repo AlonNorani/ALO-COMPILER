@@ -482,7 +482,7 @@ std::unique_ptr<ASTNode> Parser::parsePrint(bool newline)
         {
             args.push_back(parseExpression());
 
-            if (i < placeholderCount - 1)
+            if (i < placeholderCount - 1)               
                 expect(TokenType::COMMA, "Expected ',' between arguments");
         }
     }

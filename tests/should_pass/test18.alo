@@ -3,5 +3,5 @@ fn main() -> void {
     while (x < 10) {
         x = x + 1;
     }
-    println!(x + 2);
+    println!("{}", x + 2);
 }
