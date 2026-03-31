@@ -189,9 +189,10 @@ void CodeGenVisitor::visit(const FunctionNode& node)
     llvm::LLVMContext& context = builder.getContext();
 
     llvm::Type* retType = nullptr;
-    if (node.returnType == "void") retType = builder.getInt32Ty(); // always return int for main
+    if (node.returnType == "void") retType = builder.getInt32Ty();
     else if (node.returnType == "int") retType = builder.getInt32Ty();
     else if (node.returnType == "bool") retType = builder.getInt1Ty();
+    else if (node.returnType == "string") retType = llvm::PointerType::getUnqual(context);
     else throw std::runtime_error("Unsupported return type: " + node.returnType);
 
     std::vector<llvm::Type*> argTypes;
@@ -199,6 +200,7 @@ void CodeGenVisitor::visit(const FunctionNode& node)
     {
         if (param.type == "int") argTypes.push_back(builder.getInt32Ty());
         else if (param.type == "bool") argTypes.push_back(builder.getInt1Ty());
+        else if (param.type == "string") argTypes.push_back(llvm::PointerType::getUnqual(context));
         else throw std::runtime_error("Unsupported parameter type: " + param.type);
     }
 
@@ -218,7 +220,8 @@ void CodeGenVisitor::visit(const FunctionNode& node)
 
     for (auto& arg : function->args())
     {
-        llvm::AllocaInst* alloc = m_cg.createEntryBlockAlloca(function, arg.getName().str());
+        llvm::Type* argType = arg.getType();
+        llvm::AllocaInst* alloc = builder.CreateAlloca(argType, nullptr, arg.getName());
         builder.CreateStore(&arg, alloc);
         m_cg.declareVariable(arg.getName().str(), alloc);
     }

@@ -1,4 +1,16 @@
-fn main() -> void {
-    let mut x = 5;
-    x = 6;
+fn printDetails(name: string, age: int) -> void
+{
+    println!("My name is {} and I am {} years old", name, age);
+    println!("Hello from function");
 }
+
+
+
+
+
+fn main() -> void {
+    let age = 19;
+    let name = "Alon";
+    printDetails(name, age);
+}
+
