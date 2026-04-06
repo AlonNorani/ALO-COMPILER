@@ -1,4 +1,10 @@
+fn getHelloWorldMsg() -> string
+{
+    return "Hello World";
+}
+
 fn main() -> void {
     let x = 5;
     let y = x + 3;
+    println!("{}", getHelloWorldMsg());
 }
