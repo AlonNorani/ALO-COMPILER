@@ -2,4 +2,7 @@ fn main() -> void {
     let x = true;
     let y = false;
     let z = x && y;
+    let mut arr: int[5];
+    arr[0] = 5;
+    println!("arr[0] is {}", arr[0]);
 }

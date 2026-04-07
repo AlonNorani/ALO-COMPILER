@@ -8,126 +8,118 @@ CodeGenerator::CodeGenerator()
     pushScope();
 }
 
-llvm::IRBuilder<>& CodeGenerator::getBuilder()
-{
-    return m_builder;
-}
+llvm::IRBuilder<>& CodeGenerator::getBuilder() { return m_builder; }
+llvm::LLVMContext& CodeGenerator::getContext() { return m_context; }
+llvm::Module&      CodeGenerator::getModule()  { return m_module;  }
 
-llvm::LLVMContext& CodeGenerator::getContext()
-{
-    return m_context;
-}
-
-llvm::Module& CodeGenerator::getModule()
-{
-    return m_module;
-}
-
-void CodeGenerator::pushScope()
-{
-    m_scopes.push_back({});
-}
-
-void CodeGenerator::popScope()
-{
-    if (!m_scopes.empty())
-        m_scopes.pop_back();
-}
+void CodeGenerator::pushScope() { m_scopes.push_back({}); }
+void CodeGenerator::popScope()  { if (!m_scopes.empty()) m_scopes.pop_back(); }
 
 void CodeGenerator::declareVariable(const std::string& name, llvm::AllocaInst* alloc)
 {
     if (m_scopes.empty())
         throw std::runtime_error("No active scope");
-
     m_scopes.back()[name] = alloc;
 }
 
 llvm::AllocaInst* CodeGenerator::lookupVariable(const std::string& name)
 {
-    for (auto it = m_scopes.rbegin(); it != m_scopes.rend(); ++it)
-    {
+    for (auto it = m_scopes.rbegin(); it != m_scopes.rend(); ++it) {
         auto found = it->find(name);
-        if (found != it->end())
-            return found->second;
+        if (found != it->end()) return found->second;
     }
-
     return nullptr;
 }
 
 llvm::Value* CodeGenerator::loadVariable(const std::string& name)
 {
     llvm::AllocaInst* var = lookupVariable(name);
-
-    if (!var)
-        throw std::runtime_error("Unknown variable: " + name);
-
-    // FIX: load using the alloca's actual allocated type, not hardcoded i32.
-    // This correctly handles int, bool, and pointer (string) variables.
-    return m_builder.CreateLoad(
-        var->getAllocatedType(),
-        var,
-        name
-    );
+    if (!var) throw std::runtime_error("Unknown variable: " + name);
+    return m_builder.CreateLoad(var->getAllocatedType(), var, name);
 }
 
-// FIX: added optional llvm::Type* parameter (defaults to i32 in the header).
-// When allocating a string variable the caller passes llvm::PointerType::getUnqual(ctx)
-// so the slot is the right size instead of an i32.
-llvm::AllocaInst* CodeGenerator::createEntryBlockAlloca(llvm::Function* function,
-                                                         const std::string& name,
-                                                         llvm::Type* type)
+llvm::AllocaInst* CodeGenerator::createEntryBlockAlloca(llvm::Function*    function,
+                                                          const std::string& name,
+                                                          llvm::Type*        type)
 {
-    llvm::IRBuilder<> tmpBuilder(
-        &function->getEntryBlock(),
-        function->getEntryBlock().begin()
-    );
-
-    // If no type was provided fall back to i32 (original behaviour for int/bool)
-    if (!type)
-        type = m_builder.getInt32Ty();
-
-    return tmpBuilder.CreateAlloca(type, nullptr, name);
+    llvm::IRBuilder<> tmp(&function->getEntryBlock(),
+                          function->getEntryBlock().begin());
+    if (!type) type = m_builder.getInt32Ty();
+    return tmp.CreateAlloca(type, nullptr, name);
 }
 
+// ─────────────────────────────────────────────
+//  Array helpers  (NEW)
+// ─────────────────────────────────────────────
+
+// Allocates  [size x elementType]  in the function entry block.
+llvm::AllocaInst* CodeGenerator::createArrayAlloca(llvm::Function*    function,
+                                                    const std::string& name,
+                                                    llvm::Type*        elementType,
+                                                    int                size)
+{
+    llvm::IRBuilder<> tmp(&function->getEntryBlock(),
+                          function->getEntryBlock().begin());
+
+    llvm::ArrayType* arrTy = llvm::ArrayType::get(elementType, static_cast<uint64_t>(size));
+    llvm::AllocaInst* alloc = tmp.CreateAlloca(arrTy, nullptr, name);
+
+    // Remember the element type so loads/stores can use it later
+    m_arrayElemTypes[name] = elementType;
+
+    return alloc;
+}
+
+// Returns a pointer to arr[index] using GEP.
+// alloc->getAllocatedType() is [N x elemTy]; we index into it with {0, index}.
+llvm::Value* CodeGenerator::getArrayElementPtr(llvm::AllocaInst* alloc,
+                                                llvm::Value*      index,
+                                                llvm::Type*       elementType)
+{
+    llvm::Value* zero = llvm::ConstantInt::get(m_builder.getInt32Ty(), 0);
+    return m_builder.CreateInBoundsGEP(
+        alloc->getAllocatedType(),
+        alloc,
+        {zero, index},
+        "elemptr"
+    );
+}
+
+void CodeGenerator::setArrayElementType(const std::string& name, llvm::Type* elemTy)
+{
+    m_arrayElemTypes[name] = elemTy;
+}
+
+llvm::Type* CodeGenerator::getArrayElementType(const std::string& name)
+{
+    auto it = m_arrayElemTypes.find(name);
+    if (it != m_arrayElemTypes.end()) return it->second;
+    return nullptr;
+}
+
+// ─────────────────────────────────────────────
+//  Main boilerplate (unchanged)
+// ─────────────────────────────────────────────
 llvm::Function* CodeGenerator::createMainFunction()
 {
     llvm::FunctionType* mainType =
-        llvm::FunctionType::get(
-            m_builder.getInt32Ty(),
-            false
-        );
+        llvm::FunctionType::get(m_builder.getInt32Ty(), false);
 
     llvm::Function* mainFunc =
-        llvm::Function::Create(
-            mainType,
-            llvm::Function::ExternalLinkage,
-            "main",
-            m_module
-        );
+        llvm::Function::Create(mainType, llvm::Function::ExternalLinkage,
+                               "main", m_module);
 
     llvm::BasicBlock* entry =
-        llvm::BasicBlock::Create(
-            m_context,
-            "entry",
-            mainFunc
-        );
-
+        llvm::BasicBlock::Create(m_context, "entry", mainFunc);
     m_builder.SetInsertPoint(entry);
 
     pushScope();
-
     return mainFunc;
 }
 
 void CodeGenerator::finishMain()
 {
-    m_builder.CreateRet(
-        llvm::ConstantInt::get(
-            m_builder.getInt32Ty(),
-            0
-        )
-    );
-
+    m_builder.CreateRet(llvm::ConstantInt::get(m_builder.getInt32Ty(), 0));
     popScope();
 }
 
@@ -136,15 +128,10 @@ void CodeGenerator::printIR()
     m_module.print(llvm::outs(), nullptr);
 }
 
-
 void CodeGenerator::writeIRToFile(const std::string& filename)
 {
     std::error_code EC;
     llvm::raw_fd_ostream file(filename, EC);
-
-    if (EC) {
-        throw std::runtime_error("Failed to open IR output file");
-    }
-
+    if (EC) throw std::runtime_error("Failed to open IR output file");
     m_module.print(file, nullptr);
 }

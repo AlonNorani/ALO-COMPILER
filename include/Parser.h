@@ -15,14 +15,26 @@ public:
     std::vector<std::unique_ptr<ASTNode>> parseProgram();
 
 private:
-    Lexer& lexer; // reference to a Lexer instance
-    Token currentToken;
-    bool match(TokenType expectedType);
-    Token expect(TokenType expectedType, const std::string& errorMessage);
-    void advance();
+    Lexer& lexer;
+    Token  currentToken;
 
-    // parse functions for different grammar rules
-    std::unique_ptr<ASTNode> parseStatement();
+    bool  match(TokenType expectedType);
+    Token expect(TokenType expectedType, const std::string& errorMessage);
+    void  advance();
+
+    // Statements
+    std::unique_ptr<ASTNode>      parseStatement();
+    std::unique_ptr<ASTNode>      parseLetStatement();
+    std::unique_ptr<ASTNode>      parseAssignment();      // x = expr;
+    std::unique_ptr<ASTNode>      parseArrayAssignment(); // x[i] = expr;  (NEW)
+    std::unique_ptr<BlockNode>    parseBlock();
+    std::unique_ptr<IfNode>       parseIfStatement();
+    std::unique_ptr<WhileNode>    parseWhileStatement();
+    std::unique_ptr<FunctionNode> parseFunction();
+    std::unique_ptr<ASTNode>      parseReturnStatement();
+    std::unique_ptr<ASTNode>      parsePrint(bool newline);
+
+    // Expressions
     std::unique_ptr<ASTNode> parseExpression();
     std::unique_ptr<ASTNode> parseLogicalOr();
     std::unique_ptr<ASTNode> parseLogicalAnd();
@@ -30,25 +42,14 @@ private:
     std::unique_ptr<ASTNode> parseAdditive();
     std::unique_ptr<ASTNode> parseTerm();
     std::unique_ptr<ASTNode> parseUnary();
-    std::unique_ptr<ASTNode> parseFactor();
-    // assignments and variable declarations
-    std::unique_ptr<ASTNode> parseAssignment(); // for simple assignments like x = 5;
-    std::unique_ptr<ASTNode> parseLetStatement(); // for variable declarations with 'let' keyword
-    // parse blcoks and control flow statements
-    std::unique_ptr<BlockNode> parseBlock();       
-    std::unique_ptr<IfNode> parseIfStatement();  
-    std::unique_ptr<WhileNode> parseWhileStatement(); 
-    //functions
-    std::unique_ptr<FunctionNode> parseFunction();
+    std::unique_ptr<ASTNode> parseFactor();     // handles arr[i] reads too
+
+    // Array literal  [e1, e2, …]  (NEW)
+    std::unique_ptr<ASTNode> parseArrayLiteral();
+
+    // Helpers
     std::vector<Parameter> parseParameterList();
-    std::string parseType();
-    std::unique_ptr<ASTNode> parseReturnStatement();
-    // print
-    std::unique_ptr<ASTNode> parsePrint(bool newline);
-
-
-
-
+    std::string            parseType();
 };
 
 #endif
