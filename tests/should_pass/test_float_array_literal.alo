@@ -1,0 +1,4 @@
+fn main() -> void {
+    let arr: float[3] = [1.5, 2.5, 3.5];
+    println!("arr[0]={} arr[1]={} arr[2]={}", arr[0], arr[1], arr[2]);
+}

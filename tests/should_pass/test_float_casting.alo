@@ -1,0 +1,8 @@
+fn main() -> void {
+    let a = (int)3.7;
+    let b = (int)5.9;
+    let c = (float)5;
+    let d = (float)10;
+    let e = (float)(int)7.2;
+    println!("a={} b={} c={} d={} e={}", a, b, c, d, e);
+}

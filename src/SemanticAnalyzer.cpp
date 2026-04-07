@@ -10,9 +10,23 @@ void SemanticAnalyzer::analyze(const std::vector<std::unique_ptr<ASTNode>>& ast)
 
 
 void SemanticAnalyzer::visit(const NumberNode&) { m_currentType = VarType::INT;    }
+void SemanticAnalyzer::visit(const FloatNode&)  { m_currentType = VarType::FLOAT;  }
 void SemanticAnalyzer::visit(const BoolNode&)   { m_currentType = VarType::BOOL;   }
 void SemanticAnalyzer::visit(const StringNode&) { m_currentType = VarType::STRING; }
 
+void SemanticAnalyzer::visit(const CastNode& node)
+{
+    node.expression->accept(*this);
+    VarType targetType = stringToVarType(node.targetType);
+    if (targetType == m_currentType)
+        m_currentType = targetType;
+    else if (targetType == VarType::FLOAT && m_currentType == VarType::INT)
+        m_currentType = VarType::FLOAT;
+    else if (targetType == VarType::INT && m_currentType == VarType::FLOAT)
+        m_currentType = VarType::INT;
+    else
+        throw std::runtime_error("Invalid cast from " + node.targetType);
+}
 
 void SemanticAnalyzer::visit(const LetNode& node)
 {
@@ -34,9 +48,12 @@ void SemanticAnalyzer::visit(const LetNode& node)
 
             for (const auto& elem : lit->elements) {
                 elem->accept(*this);
-                if (m_currentType != elemType)
-                    throw std::runtime_error(
-                        "Type mismatch in array literal for '" + node.variableName + "'");
+                if (m_currentType == elemType)
+                    continue;
+                if (elemType == VarType::FLOAT && m_currentType == VarType::INT)
+                    continue;
+                throw std::runtime_error(
+                    "Type mismatch in array literal for '" + node.variableName + "'");
             }
         } else if (size <= 0) {
             throw std::runtime_error(
@@ -59,9 +76,13 @@ void SemanticAnalyzer::visit(const LetNode& node)
 
     if (node.hasTypeAnnotation) {
         VarType annotated = stringToVarType(node.annotatedType);
-        if (varType != annotated)
+        if (varType == annotated) {
+            varType = annotated;
+        } else if (annotated == VarType::FLOAT && varType == VarType::INT) {
+            varType = VarType::FLOAT;
+        } else {
             throw std::runtime_error("Type mismatch in declaration of '" + node.variableName + "'");
-        varType = annotated;
+        }
     }
 
     if (!declareVariable(node.variableName, varType, node.isMutable))
@@ -128,8 +149,11 @@ void SemanticAnalyzer::visit(const AssignmentNode& node)
     if (!var->get().mutableFlag)
         throw std::runtime_error("Cannot assign to immutable variable: " + node.variableName);
     node.expression->accept(*this);
-    if (var->get().type != m_currentType)
-        throw std::runtime_error("Type mismatch in assignment to: " + node.variableName);
+    if (var->get().type == m_currentType)
+        return;
+    if (var->get().type == VarType::FLOAT && m_currentType == VarType::INT)
+        return;
+    throw std::runtime_error("Type mismatch in assignment to: " + node.variableName);
 }
 
 void SemanticAnalyzer::visit(const BinaryOpNode& node)
@@ -137,26 +161,43 @@ void SemanticAnalyzer::visit(const BinaryOpNode& node)
     node.left->accept(*this);  VarType leftType  = m_currentType;
     node.right->accept(*this); VarType rightType = m_currentType;
 
+    auto isNumeric = [&](VarType t) {
+        return t == VarType::INT || t == VarType::FLOAT;
+    };
+
     switch (node.op) {
         case TokenType::PLUS: case TokenType::MINUS:
         case TokenType::STAR: case TokenType::SLASH:
-            if (leftType != VarType::INT || rightType != VarType::INT)
-                throw std::runtime_error("Arithmetic operations require integers");
-            if (node.op == TokenType::SLASH)
-                if (auto* lit = dynamic_cast<const NumberNode*>(node.right.get()))
-                    if (lit->value == 0) throw std::runtime_error("Division by zero");
-            m_currentType = VarType::INT; break;
+            if (!isNumeric(leftType) || !isNumeric(rightType))
+                throw std::runtime_error("Arithmetic operations require numeric types");
+            if (node.op == TokenType::SLASH) {
+                if (auto* lit = dynamic_cast<const NumberNode*>(node.right.get())) {
+                    if (lit->value == 0 && leftType == VarType::INT && rightType == VarType::INT)
+                        throw std::runtime_error("Division by zero");
+                }
+            }
+            m_currentType = (leftType == VarType::FLOAT || rightType == VarType::FLOAT)
+                                ? VarType::FLOAT
+                                : VarType::INT;
+            break;
 
         case TokenType::GREATER: case TokenType::LESS:
         case TokenType::GREATER_EQUAL: case TokenType::LESS_EQUAL:
-            if (leftType != VarType::INT || rightType != VarType::INT)
-                throw std::runtime_error("Comparison operators require integers");
+            if (!isNumeric(leftType) || !isNumeric(rightType))
+                throw std::runtime_error("Comparison operators require numeric types");
             m_currentType = VarType::BOOL; break;
 
         case TokenType::DOUBLE_EQUAL: case TokenType::NOT_EQUAL:
-            if (leftType != rightType)
-                throw std::runtime_error("Equality comparison requires same types");
-            m_currentType = VarType::BOOL; break;
+            if (leftType == rightType) {
+                m_currentType = VarType::BOOL;
+                break;
+            }
+            if ((leftType == VarType::INT && rightType == VarType::FLOAT) ||
+                (leftType == VarType::FLOAT && rightType == VarType::INT)) {
+                m_currentType = VarType::BOOL;
+                break;
+            }
+            throw std::runtime_error("Equality comparison requires compatible types");
 
         case TokenType::LOGICAL_AND: case TokenType::LOGICAL_OR:
             if ((leftType  != VarType::BOOL && leftType  != VarType::INT) ||
@@ -210,9 +251,9 @@ void SemanticAnalyzer::visit(const UnaryOpNode& node)
                 throw std::runtime_error("NOT requires bool or int");
             m_currentType = VarType::BOOL; break;
         case TokenType::MINUS:
-            if (m_currentType != VarType::INT)
-                throw std::runtime_error("Unary minus requires int");
-            m_currentType = VarType::INT; break;
+            if (m_currentType != VarType::INT && m_currentType != VarType::FLOAT)
+                throw std::runtime_error("Unary minus requires int or float");
+            break;
         default: throw std::runtime_error("Unsupported unary operator");
     }
 }
@@ -268,9 +309,15 @@ void SemanticAnalyzer::visit(const ReturnNode& node)
     if (!m_insideFunction)
         throw std::runtime_error("Return statement outside function");
     node.expression->accept(*this);
-    if (m_currentType != m_currentFunctionReturnType)
-        throw std::runtime_error("Return type mismatch");
-    m_foundReturn = true;
+    if (m_currentType == m_currentFunctionReturnType) {
+        m_foundReturn = true;
+        return;
+    }
+    if (m_currentFunctionReturnType == VarType::FLOAT && m_currentType == VarType::INT) {
+        m_foundReturn = true;
+        return;
+    }
+    throw std::runtime_error("Return type mismatch");
 }
 
 
@@ -292,7 +339,6 @@ void SemanticAnalyzer::visit(const CallNode& node)
         const ParamInfo& pi = info.params[i];
 
         if (pi.isArray) {
-            // Argument must be an array of the right element type
             if (m_currentType != VarType::ARRAY)
                 throw std::runtime_error(
                     "Argument " + std::to_string(i + 1) +
@@ -302,8 +348,11 @@ void SemanticAnalyzer::visit(const CallNode& node)
                     "Array element type mismatch for argument " +
                     std::to_string(i + 1) + " in call to '" + node.functionName + "'");
         } else {
-            if (m_currentType != pi.varType)
-                throw std::runtime_error(
+            if (m_currentType == pi.varType)
+                continue;
+            if (pi.varType == VarType::FLOAT && m_currentType == VarType::INT)
+                continue;
+            throw std::runtime_error(
                     "Type mismatch for argument " + std::to_string(i + 1) +
                     " in call to '" + node.functionName + "'");
         }

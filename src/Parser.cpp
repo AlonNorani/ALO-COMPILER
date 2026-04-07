@@ -220,7 +220,14 @@ std::unique_ptr<ASTNode> Parser::parseUnary()
 std::unique_ptr<ASTNode> Parser::parseFactor()
 {
     if (currentToken.type == TokenType::NUMBER) {
-        int val = std::stoi(currentToken.lexeme); advance();
+        const std::string lexeme = currentToken.lexeme;
+        if (lexeme.find('.') != std::string::npos) {
+            double val = std::stod(lexeme);
+            advance();
+            return std::make_unique<FloatNode>(val);
+        }
+        int val = std::stoi(lexeme);
+        advance();
         return std::make_unique<NumberNode>(val);
     }
     if (currentToken.type == TokenType::STRING) {
@@ -249,6 +256,17 @@ std::unique_ptr<ASTNode> Parser::parseFactor()
     }
     if (currentToken.type == TokenType::LPAREN) {
         advance();
+        if (currentToken.type == TokenType::INT || currentToken.type == TokenType::FLOAT ||
+            currentToken.type == TokenType::BOOL || currentToken.type == TokenType::STRING_TYPE) {
+            std::string castType = currentToken.lexeme;
+            advance();
+            if (currentToken.type == TokenType::RPAREN) {
+                advance();
+                auto expr = parseFactor();
+                return std::make_unique<CastNode>(castType, std::move(expr));
+            }
+            throw std::runtime_error("Invalid cast syntax");
+        }
         auto expr = parseExpression();
         expect(TokenType::RPAREN, "Expected ')'");
         return expr;

@@ -1,0 +1,15 @@
+fn add(a: float, b: float) -> float {
+    return a + b;
+}
+
+fn multiply(x: float, y: float) -> float {
+    return x * y;
+}
+
+fn main() -> void {
+    let x = add(3.5, 2.1);
+    let y = add(5, 2.5);
+    let z = multiply(2.0, 3.5);
+    let w = multiply(4, 2.5);
+    println!("x={} y={} z={} w={}", x, y, z, w);
+}

@@ -1,0 +1,11 @@
+fn main() -> void {
+    let a = 5 + 3.2;
+    let b = 2.5 + 10;
+    let c = 8 - 2.3;
+    let d = 10.0 - 3;
+    let e = 2 * 3.5;
+    let f = 4.0 * 5;
+    let g = 10 / 2.5;
+    let h = 20.0 / 4;
+    println!("a={} b={} c={} d={} e={} f={} g={} h={}", a, b, c, d, e, f, g, h);
+}

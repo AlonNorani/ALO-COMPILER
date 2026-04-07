@@ -15,6 +15,7 @@ public:
     llvm::Value* getValue();
 
     void visit(const NumberNode&       node) override;
+    void visit(const FloatNode&        node) override;
     void visit(const BoolNode&         node) override;
     void visit(const StringNode&       node) override;
     void visit(const VariableNode&     node) override;
@@ -29,6 +30,7 @@ public:
     void visit(const ReturnNode&       node) override;
     void visit(const CallNode&         node) override;
     void visit(const PrintNode&        node) override;
+    void visit(const CastNode&         node) override;
     void visit(const ArrayLiteralNode& node) override;
     void visit(const ArrayAccessNode&  node) override;
     void visit(const ArrayAssignNode&  node) override;
@@ -43,6 +45,7 @@ private:
                                       const std::vector<VarType>& argTypes,
                                       bool                        newline);
     llvm::Type*  varTypeToLLVM(VarType vt);
+    VarType      llvmTypeToVarType(llvm::Type* type);
     VarType      stringToVarType(const std::string& s);  // NEW
 };
 
