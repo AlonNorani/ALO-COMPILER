@@ -11,17 +11,12 @@
 
 struct ASTVisitor;
 
-// ─────────────────────────────────────────────
-//  Parameter — extended with array support
-//
-//  Scalar:  name: int     → type="int",  isArray=false
-//  Array:   arr:  int[]   → type="int",  isArray=true
-// ─────────────────────────────────────────────
+
 struct Parameter
 {
-    std::string type;           // element type ("int", "bool", "string", …)
+    std::string type;           
     std::string name;
-    bool        isArray = false; // NEW
+    bool        isArray = false; 
 };
 
 inline std::string tokenTypeToString(TokenType type) {
@@ -333,9 +328,7 @@ struct PrintNode : ASTNode {
     }
 };
 
-// ─────────────────────────────────────────────
 //  Array nodes
-// ─────────────────────────────────────────────
 
 struct ArrayLiteralNode : ASTNode {
     std::vector<std::unique_ptr<ASTNode>> elements;

@@ -50,8 +50,8 @@ enum class TokenType
     RPAREN,           
     LBRACE,           
     RBRACE,
-    LBRACKET,         // [   NEW
-    RBRACKET,         // ]   NEW
+    LBRACKET,         
+    RBRACKET,         
     SEMICOLON,        
     COMMA, 
     COLON, 
