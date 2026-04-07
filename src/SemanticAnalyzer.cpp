@@ -48,9 +48,12 @@ void SemanticAnalyzer::visit(const LetNode& node)
 
             for (const auto& elem : lit->elements) {
                 elem->accept(*this);
-                if (m_currentType != elemType)
-                    throw std::runtime_error(
-                        "Type mismatch in array literal for '" + node.variableName + "'");
+                if (m_currentType == elemType)
+                    continue;
+                if (elemType == VarType::FLOAT && m_currentType == VarType::INT)
+                    continue;
+                throw std::runtime_error(
+                    "Type mismatch in array literal for '" + node.variableName + "'");
             }
         } else if (size <= 0) {
             throw std::runtime_error(
