@@ -11,9 +11,7 @@ void CodeGenVisitor::generate(const std::vector<std::unique_ptr<ASTNode>>& progr
 
 llvm::Value* CodeGenVisitor::getValue() { return m_lastValue; }
 
-// ─────────────────────────────────────────────
-//  VarType → LLVM scalar Type*
-// ─────────────────────────────────────────────
+
 llvm::Type* CodeGenVisitor::varTypeToLLVM(VarType vt)
 {
     auto& builder = m_cg.getBuilder();
@@ -27,9 +25,7 @@ llvm::Type* CodeGenVisitor::varTypeToLLVM(VarType vt)
     }
 }
 
-// ─────────────────────────────────────────────
-//  Literals
-// ─────────────────────────────────────────────
+
 void CodeGenVisitor::visit(const NumberNode& node)
 {
     m_lastValue   = llvm::ConstantInt::get(m_cg.getBuilder().getInt32Ty(), node.value);
@@ -50,9 +46,7 @@ void CodeGenVisitor::visit(const VariableNode& node)
     m_lastValue = m_cg.loadVariable(node.name);
 }
 
-// ─────────────────────────────────────────────
-//  Expressions
-// ─────────────────────────────────────────────
+
 void CodeGenVisitor::visit(const BinaryOpNode& node)
 {
     auto& builder = m_cg.getBuilder();
@@ -89,9 +83,7 @@ void CodeGenVisitor::visit(const UnaryOpNode& node)
     }
 }
 
-// ─────────────────────────────────────────────
-//  LetNode
-// ─────────────────────────────────────────────
+
 void CodeGenVisitor::visit(const LetNode& node)
 {
     auto& builder = m_cg.getBuilder();
@@ -135,9 +127,7 @@ void CodeGenVisitor::visit(const LetNode& node)
     m_cg.declareVariable(node.variableName, alloc);
 }
 
-// ─────────────────────────────────────────────
-//  Array nodes
-// ─────────────────────────────────────────────
+
 void CodeGenVisitor::visit(const ArrayLiteralNode& node)
 {
     for (const auto& elem : node.elements) elem->accept(*this);
@@ -201,9 +191,7 @@ void CodeGenVisitor::visit(const ArrayAssignNode& node)
     builder.CreateStore(val, ptr);
 }
 
-// ─────────────────────────────────────────────
-//  AssignmentNode / ReturnNode / BlockNode
-// ─────────────────────────────────────────────
+
 void CodeGenVisitor::visit(const AssignmentNode& node)
 {
     node.expression->accept(*this);
@@ -225,9 +213,7 @@ void CodeGenVisitor::visit(const BlockNode& node)
     m_cg.popScope();
 }
 
-// ─────────────────────────────────────────────
-//  IfNode / WhileNode
-// ─────────────────────────────────────────────
+
 void CodeGenVisitor::visit(const IfNode& node)
 {
     auto& builder = m_cg.getBuilder();
@@ -269,17 +255,7 @@ void CodeGenVisitor::visit(const WhileNode& node)
     builder.SetInsertPoint(endBB);
 }
 
-// ─────────────────────────────────────────────
-//  FunctionNode  — KEY CHANGE
-//
-//  Array parameters are passed as pointers (ptr to element type),
-//  which is the standard C ABI for array decay.
-//
-//  For each array param:
-//    - LLVM argument type:  ptr (opaque pointer, LLVM 15+)
-//    - Alloca type:         ptr  (we store the incoming ptr into a slot)
-//    - Element type table:  registered so arr[i] GEPs work inside the body
-// ─────────────────────────────────────────────
+
 void CodeGenVisitor::visit(const FunctionNode& node)
 {
     auto& builder = m_cg.getBuilder();
@@ -356,14 +332,7 @@ void CodeGenVisitor::visit(const FunctionNode& node)
     m_cg.popScope();
 }
 
-// ─────────────────────────────────────────────
-//  CallNode  — KEY CHANGE
-//
-//  When an argument is a local array variable,
-//  we must pass a pointer to its first element
-//  (GEP {0,0}) rather than trying to load the
-//  whole [N x T] value.
-// ─────────────────────────────────────────────
+
 void CodeGenVisitor::visit(const CallNode& node)
 {
     auto& builder = m_cg.getBuilder();
@@ -408,9 +377,7 @@ void CodeGenVisitor::visit(const CallNode& node)
     m_lastValue = builder.CreateCall(function, args, "calltmp");
 }
 
-// ─────────────────────────────────────────────
-//  PrintNode
-// ─────────────────────────────────────────────
+
 void CodeGenVisitor::visit(const PrintNode& node)
 {
     auto& builder = m_cg.getBuilder();
@@ -451,9 +418,7 @@ void CodeGenVisitor::visit(const PrintNode& node)
     builder.CreateCall(printfFunc, callArgs);
 }
 
-// ─────────────────────────────────────────────
-//  Helpers
-// ─────────────────────────────────────────────
+
 llvm::Value* CodeGenVisitor::toBool(llvm::Value* val)
 {
     auto& builder = m_cg.getBuilder();
@@ -487,11 +452,7 @@ std::string CodeGenVisitor::convertFormatString(const std::string&          inpu
     return result;
 }
 
-// ─────────────────────────────────────────────
-//  Private helper: string type name → VarType
-//  (mirrors SemanticAnalyzer::stringToVarType but
-//   available here without a SemanticAnalyzer instance)
-// ─────────────────────────────────────────────
+
 VarType CodeGenVisitor::stringToVarType(const std::string& s)
 {
     if (s == "int")    return VarType::INT;

@@ -25,24 +25,20 @@ struct VariableInfo {
     std::string name;
     VarType     type;
     bool        mutableFlag;
-    // Array metadata (only meaningful when type == ARRAY)
     VarType     elementType = VarType::INT;
     int         arraySize   = -1;
 };
 
-// ─────────────────────────────────────────────
-//  ParamInfo — richer than a bare VarType so we
-//  can carry element-type info for array params
-// ─────────────────────────────────────────────
+
 struct ParamInfo {
-    VarType varType    = VarType::INT;   // ARRAY or scalar type
-    VarType elemType   = VarType::INT;   // only meaningful when varType==ARRAY
+    VarType varType    = VarType::INT;   
+    VarType elemType   = VarType::INT;   
     bool    isArray    = false;
 };
 
 struct FunctionInfo
 {
-    std::vector<ParamInfo> params;       // replaces old vector<VarType>
+    std::vector<ParamInfo> params;       
     VarType                returnType;
 };
 

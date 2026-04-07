@@ -25,8 +25,8 @@ private:
     // Statements
     std::unique_ptr<ASTNode>      parseStatement();
     std::unique_ptr<ASTNode>      parseLetStatement();
-    std::unique_ptr<ASTNode>      parseAssignment();      // x = expr;
-    std::unique_ptr<ASTNode>      parseArrayAssignment(); // x[i] = expr;  (NEW)
+    std::unique_ptr<ASTNode>      parseAssignment();      
+    std::unique_ptr<ASTNode>      parseArrayAssignment(); 
     std::unique_ptr<BlockNode>    parseBlock();
     std::unique_ptr<IfNode>       parseIfStatement();
     std::unique_ptr<WhileNode>    parseWhileStatement();
@@ -44,7 +44,6 @@ private:
     std::unique_ptr<ASTNode> parseUnary();
     std::unique_ptr<ASTNode> parseFactor();     // handles arr[i] reads too
 
-    // Array literal  [e1, e2, …]  (NEW)
     std::unique_ptr<ASTNode> parseArrayLiteral();
 
     // Helpers

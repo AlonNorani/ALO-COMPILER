@@ -95,16 +95,6 @@ int main(int argc, char* argv[])
     try {
         std::string source = readFile(argv[1]);
 
-        // Uncomment when you want lexer debugging
-        // checkLexer(source);
-
-        // Uncomment when you want parser debugging
-        // checkParser(source);
-
-        // Uncomment when you want semantic analysis debugging
-        // checkSemanticAnalyzer(source);
-
-        // Uncomment when you want code generation debugging
         checkCodeGen(source);
     }
     catch (const std::exception& e) {

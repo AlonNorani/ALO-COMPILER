@@ -48,11 +48,7 @@ llvm::AllocaInst* CodeGenerator::createEntryBlockAlloca(llvm::Function*    funct
     return tmp.CreateAlloca(type, nullptr, name);
 }
 
-// ─────────────────────────────────────────────
-//  Array helpers  (NEW)
-// ─────────────────────────────────────────────
 
-// Allocates  [size x elementType]  in the function entry block.
 llvm::AllocaInst* CodeGenerator::createArrayAlloca(llvm::Function*    function,
                                                     const std::string& name,
                                                     llvm::Type*        elementType,
@@ -64,14 +60,12 @@ llvm::AllocaInst* CodeGenerator::createArrayAlloca(llvm::Function*    function,
     llvm::ArrayType* arrTy = llvm::ArrayType::get(elementType, static_cast<uint64_t>(size));
     llvm::AllocaInst* alloc = tmp.CreateAlloca(arrTy, nullptr, name);
 
-    // Remember the element type so loads/stores can use it later
     m_arrayElemTypes[name] = elementType;
 
     return alloc;
 }
 
 // Returns a pointer to arr[index] using GEP.
-// alloc->getAllocatedType() is [N x elemTy]; we index into it with {0, index}.
 llvm::Value* CodeGenerator::getArrayElementPtr(llvm::AllocaInst* alloc,
                                                 llvm::Value*      index,
                                                 llvm::Type*       elementType)
@@ -97,9 +91,7 @@ llvm::Type* CodeGenerator::getArrayElementType(const std::string& name)
     return nullptr;
 }
 
-// ─────────────────────────────────────────────
-//  Main boilerplate (unchanged)
-// ─────────────────────────────────────────────
+
 llvm::Function* CodeGenerator::createMainFunction()
 {
     llvm::FunctionType* mainType =

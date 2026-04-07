@@ -32,9 +32,7 @@ Token Parser::expect(TokenType expectedType, const std::string& errorMessage)
 
 void Parser::advance() { currentToken = lexer.getNextToken(); }
 
-// ─────────────────────────────────────────────
-//  Statement dispatch
-// ─────────────────────────────────────────────
+
 std::unique_ptr<ASTNode> Parser::parseStatement()
 {
     if (currentToken.type == TokenType::PRINT_MACRO)   return parsePrint(false);
@@ -60,9 +58,7 @@ std::unique_ptr<ASTNode> Parser::parseStatement()
     return expr;
 }
 
-// ─────────────────────────────────────────────
-//  let statement
-// ─────────────────────────────────────────────
+
 std::unique_ptr<ASTNode> Parser::parseLetStatement()
 {
     advance(); // consume 'let'
@@ -109,9 +105,7 @@ std::unique_ptr<ASTNode> Parser::parseLetStatement()
     return node;
 }
 
-// ─────────────────────────────────────────────
-//  Array literal  [e1, e2, …]
-// ─────────────────────────────────────────────
+
 std::unique_ptr<ASTNode> Parser::parseArrayLiteral()
 {
     expect(TokenType::LBRACKET, "Expected '['");
@@ -124,9 +118,7 @@ std::unique_ptr<ASTNode> Parser::parseArrayLiteral()
     return std::make_unique<ArrayLiteralNode>(std::move(elements));
 }
 
-// ─────────────────────────────────────────────
-//  arr[i] = expr;
-// ─────────────────────────────────────────────
+
 std::unique_ptr<ASTNode> Parser::parseArrayAssignment()
 {
     std::string name = currentToken.lexeme;
@@ -147,9 +139,7 @@ std::unique_ptr<ASTNode> Parser::parseArrayAssignment()
     return access;
 }
 
-// ─────────────────────────────────────────────
-//  x = expr;
-// ─────────────────────────────────────────────
+
 std::unique_ptr<ASTNode> Parser::parseAssignment()
 {
     std::string varName = currentToken.lexeme;
@@ -160,9 +150,7 @@ std::unique_ptr<ASTNode> Parser::parseAssignment()
     return std::make_unique<AssignmentNode>(varName, std::move(expr));
 }
 
-// ─────────────────────────────────────────────
-//  Expressions
-// ─────────────────────────────────────────────
+
 std::unique_ptr<ASTNode> Parser::parseExpression()  { return parseLogicalOr(); }
 
 std::unique_ptr<ASTNode> Parser::parseLogicalOr()
@@ -333,16 +321,7 @@ std::unique_ptr<FunctionNode> Parser::parseFunction()
     return std::make_unique<FunctionNode>(name, std::move(params), retType, parseBlock());
 }
 
-// ─────────────────────────────────────────────
-//  parseParameterList  — KEY CHANGE
-//
-//  After parsing the scalar type we check for '[]'
-//  and set param.isArray = true if found.
-//
-//  Syntax:
-//    name: int          → scalar
-//    arr:  int[]        → array pointer (no size at call site)
-// ─────────────────────────────────────────────
+
 std::vector<Parameter> Parser::parseParameterList()
 {
     std::vector<Parameter> params;

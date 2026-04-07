@@ -15,7 +15,6 @@
 #include <llvm/Support/raw_ostream.h>
 #include <system_error>
 
-// Each scope maps a variable name to its AllocaInst
 using ScopesTable = std::vector<std::unordered_map<std::string, llvm::AllocaInst*>>;
 
 class CodeGenerator
@@ -31,35 +30,26 @@ public:
     void pushScope();
     void popScope();
 
-    // Scalar variable management
-    void               declareVariable(const std::string& name, llvm::AllocaInst* alloc);
-    llvm::AllocaInst*  lookupVariable (const std::string& name);
-    llvm::Value*       loadVariable   (const std::string& name);
+    void declareVariable(const std::string& name, llvm::AllocaInst* alloc);
+    llvm::AllocaInst* lookupVariable (const std::string& name);
+    llvm::Value* loadVariable   (const std::string& name);
 
-    // Allocate scalar in function entry block (type defaults to i32)
     llvm::AllocaInst* createEntryBlockAlloca(llvm::Function*    function,
                                               const std::string& name,
                                               llvm::Type*        type = nullptr);
 
-    // ── Array helpers (NEW) ───────────────────────────────────────────────
-    // Allocate a fixed-size array in the function entry block.
-    // elementType: LLVM type of one element  (e.g. i32)
-    // size:        number of elements
     llvm::AllocaInst* createArrayAlloca(llvm::Function*    function,
                                          const std::string& name,
                                          llvm::Type*        elementType,
                                          int                size);
 
-    // GEP pointer to arr[index].  alloc must be the AllocaInst for the array.
     llvm::Value* getArrayElementPtr(llvm::AllocaInst* alloc,
                                      llvm::Value*      index,
                                      llvm::Type*       elementType);
 
-    // Store an element type mapping (needed by load/store helpers)
     void              setArrayElementType(const std::string& name, llvm::Type* elemTy);
     llvm::Type*       getArrayElementType(const std::string& name);
 
-    // Main function boilerplate
     llvm::Function* createMainFunction();
     void            finishMain();
 
@@ -73,7 +63,6 @@ private:
 
     ScopesTable m_scopes;
 
-    // Maps variable name → LLVM element type (for arrays)
     std::unordered_map<std::string, llvm::Type*> m_arrayElemTypes;
 };
 
