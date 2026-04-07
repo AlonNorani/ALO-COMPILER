@@ -74,6 +74,16 @@ struct BoolNode : ASTNode {
     }
 };
 
+struct FloatNode : ASTNode {
+    double value;
+    FloatNode(double val) : value(val) {}
+    ACCEPT_VISITOR
+    int  evaluate() const override { return static_cast<int>(value); }
+    void print(int indent = 0) const override {
+        std::cout << std::string(indent, ' ') << "Float: " << value << "\n";
+    }
+};
+
 struct StringNode : ASTNode {
     std::string value;
     StringNode(std::string val) : value(std::move(val)) {}
@@ -81,6 +91,18 @@ struct StringNode : ASTNode {
     void print(int indent = 0) const override {
         std::cout << std::string(indent, ' ')
                   << "String: \"" << value << "\"\n";
+    }
+};
+
+struct CastNode : ASTNode {
+    std::string targetType;
+    std::unique_ptr<ASTNode> expression;
+    CastNode(std::string type, std::unique_ptr<ASTNode> expr)
+        : targetType(std::move(type)), expression(std::move(expr)) {}
+    ACCEPT_VISITOR
+    void print(int indent = 0) const override {
+        std::cout << std::string(indent, ' ') << "Cast: (" << targetType << ")\n";
+        expression->print(indent + 2);
     }
 };
 

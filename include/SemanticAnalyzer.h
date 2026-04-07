@@ -54,6 +54,7 @@ public:
     void analyze(const std::vector<std::unique_ptr<ASTNode>>& ast);
 
     virtual void visit(const NumberNode&       node) override;
+    virtual void visit(const FloatNode&        node) override;
     virtual void visit(const BoolNode&         node) override;
     virtual void visit(const StringNode&       node) override;
     virtual void visit(const BinaryOpNode&     node) override;
@@ -68,6 +69,7 @@ public:
     virtual void visit(const ReturnNode&       node) override;
     virtual void visit(const CallNode&         node) override;
     virtual void visit(const PrintNode&        node) override;
+    virtual void visit(const CastNode&         node) override;
     virtual void visit(const ArrayLiteralNode& node) override;
     virtual void visit(const ArrayAccessNode&  node) override;
     virtual void visit(const ArrayAssignNode&  node) override;

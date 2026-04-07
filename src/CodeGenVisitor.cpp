@@ -18,6 +18,7 @@ llvm::Type* CodeGenVisitor::varTypeToLLVM(VarType vt)
     auto& context = m_cg.getContext();
     switch (vt) {
         case VarType::INT:    return builder.getInt32Ty();
+        case VarType::FLOAT:  return builder.getDoubleTy();
         case VarType::BOOL:   return builder.getInt1Ty();
         case VarType::STRING: return llvm::PointerType::getUnqual(context);
         default:
@@ -25,11 +26,25 @@ llvm::Type* CodeGenVisitor::varTypeToLLVM(VarType vt)
     }
 }
 
+VarType CodeGenVisitor::llvmTypeToVarType(llvm::Type* type)
+{
+    if (type->isDoubleTy()) return VarType::FLOAT;
+    if (type->isIntegerTy(32)) return VarType::INT;
+    if (type->isIntegerTy(1)) return VarType::BOOL;
+    if (type->isPointerTy()) return VarType::STRING;
+    throw std::runtime_error("Unsupported LLVM type");
+}
+
 
 void CodeGenVisitor::visit(const NumberNode& node)
 {
     m_lastValue   = llvm::ConstantInt::get(m_cg.getBuilder().getInt32Ty(), node.value);
     m_lastVarType = VarType::INT;
+}
+void CodeGenVisitor::visit(const FloatNode& node)
+{
+    m_lastValue   = llvm::ConstantFP::get(m_cg.getContext(), llvm::APFloat(node.value));
+    m_lastVarType = VarType::FLOAT;
 }
 void CodeGenVisitor::visit(const BoolNode& node)
 {
@@ -44,30 +59,99 @@ void CodeGenVisitor::visit(const StringNode& node)
 void CodeGenVisitor::visit(const VariableNode& node)
 {
     m_lastValue = m_cg.loadVariable(node.name);
+    m_lastVarType = llvmTypeToVarType(m_lastValue->getType());
 }
 
+void CodeGenVisitor::visit(const CastNode& node)
+{
+    node.expression->accept(*this);
+    auto& builder = m_cg.getBuilder();
+    if (node.targetType == "float") {
+        if (m_lastVarType == VarType::INT) {
+            m_lastValue = builder.CreateSIToFP(m_lastValue, builder.getDoubleTy(), "int2float");
+            m_lastVarType = VarType::FLOAT;
+        }
+    } else if (node.targetType == "int") {
+        if (m_lastVarType == VarType::FLOAT) {
+            m_lastValue = builder.CreateFPToSI(m_lastValue, builder.getInt32Ty(), "float2int");
+            m_lastVarType = VarType::INT;
+        }
+    }
+}
 
 void CodeGenVisitor::visit(const BinaryOpNode& node)
 {
     auto& builder = m_cg.getBuilder();
-    node.left->accept(*this);  llvm::Value* L = m_lastValue;
-    node.right->accept(*this); llvm::Value* R = m_lastValue;
+    node.left->accept(*this);  llvm::Value* L = m_lastValue; VarType LType = m_lastVarType;
+    node.right->accept(*this); llvm::Value* R = m_lastValue; VarType RType = m_lastVarType;
+
+    bool isFloat = (LType == VarType::FLOAT || RType == VarType::FLOAT);
+    if (isFloat) {
+        if (LType == VarType::INT)
+            L = builder.CreateSIToFP(L, builder.getDoubleTy(), "int2float");
+        if (RType == VarType::INT)
+            R = builder.CreateSIToFP(R, builder.getDoubleTy(), "int2float");
+    }
 
     switch (node.op) {
-        case TokenType::PLUS:          m_lastValue = builder.CreateAdd (L, R, "add"); break;
-        case TokenType::MINUS:         m_lastValue = builder.CreateSub (L, R, "sub"); break;
-        case TokenType::STAR:          m_lastValue = builder.CreateMul (L, R, "mul"); break;
-        case TokenType::SLASH:         m_lastValue = builder.CreateSDiv(L, R, "div"); break;
-        case TokenType::LESS:          m_lastValue = builder.CreateICmpSLT(L, R, "lt");  break;
-        case TokenType::GREATER:       m_lastValue = builder.CreateICmpSGT(L, R, "gt");  break;
-        case TokenType::LESS_EQUAL:    m_lastValue = builder.CreateICmpSLE(L, R, "le");  break;
-        case TokenType::GREATER_EQUAL: m_lastValue = builder.CreateICmpSGE(L, R, "ge");  break;
-        case TokenType::DOUBLE_EQUAL:  m_lastValue = builder.CreateICmpEQ (L, R, "eq");  break;
-        case TokenType::NOT_EQUAL:     m_lastValue = builder.CreateICmpNE (L, R, "ne");  break;
+        case TokenType::PLUS:
+            if (isFloat) m_lastValue = builder.CreateFAdd(L, R, "fadd");
+            else m_lastValue = builder.CreateAdd(L, R, "add");
+            m_lastVarType = isFloat ? VarType::FLOAT : VarType::INT;
+            break;
+        case TokenType::MINUS:
+            if (isFloat) m_lastValue = builder.CreateFSub(L, R, "fsub");
+            else m_lastValue = builder.CreateSub(L, R, "sub");
+            m_lastVarType = isFloat ? VarType::FLOAT : VarType::INT;
+            break;
+        case TokenType::STAR:
+            if (isFloat) m_lastValue = builder.CreateFMul(L, R, "fmul");
+            else m_lastValue = builder.CreateMul(L, R, "mul");
+            m_lastVarType = isFloat ? VarType::FLOAT : VarType::INT;
+            break;
+        case TokenType::SLASH:
+            if (isFloat) m_lastValue = builder.CreateFDiv(L, R, "fdiv");
+            else m_lastValue = builder.CreateSDiv(L, R, "div");
+            m_lastVarType = isFloat ? VarType::FLOAT : VarType::INT;
+            break;
+        case TokenType::LESS:
+            if (isFloat) m_lastValue = builder.CreateFCmpOLT(L, R, "lt");
+            else m_lastValue = builder.CreateICmpSLT(L, R, "lt");
+            m_lastVarType = VarType::BOOL;
+            break;
+        case TokenType::GREATER:
+            if (isFloat) m_lastValue = builder.CreateFCmpOGT(L, R, "gt");
+            else m_lastValue = builder.CreateICmpSGT(L, R, "gt");
+            m_lastVarType = VarType::BOOL;
+            break;
+        case TokenType::LESS_EQUAL:
+            if (isFloat) m_lastValue = builder.CreateFCmpOLE(L, R, "le");
+            else m_lastValue = builder.CreateICmpSLE(L, R, "le");
+            m_lastVarType = VarType::BOOL;
+            break;
+        case TokenType::GREATER_EQUAL:
+            if (isFloat) m_lastValue = builder.CreateFCmpOGE(L, R, "ge");
+            else m_lastValue = builder.CreateICmpSGE(L, R, "ge");
+            m_lastVarType = VarType::BOOL;
+            break;
+        case TokenType::DOUBLE_EQUAL:
+            if (isFloat) m_lastValue = builder.CreateFCmpUEQ(L, R, "eq");
+            else m_lastValue = builder.CreateICmpEQ(L, R, "eq");
+            m_lastVarType = VarType::BOOL;
+            break;
+        case TokenType::NOT_EQUAL:
+            if (isFloat) m_lastValue = builder.CreateFCmpUNE(L, R, "ne");
+            else m_lastValue = builder.CreateICmpNE(L, R, "ne");
+            m_lastVarType = VarType::BOOL;
+            break;
         case TokenType::LOGICAL_AND:
-            m_lastValue = builder.CreateAnd(toBool(L), toBool(R), "and"); break;
+            m_lastValue = builder.CreateAnd(toBool(L), toBool(R), "and");
+            m_lastVarType = VarType::BOOL;
+            break;
         case TokenType::LOGICAL_OR:
-            m_lastValue = builder.CreateOr (toBool(L), toBool(R), "or");  break;
+            m_lastValue = builder.CreateOr(toBool(L), toBool(R), "or");
+            m_lastVarType = VarType::BOOL;
+            break;
         default: throw std::runtime_error("Unsupported binary operator in codegen");
     }
 }
@@ -77,8 +161,17 @@ void CodeGenVisitor::visit(const UnaryOpNode& node)
     auto& builder = m_cg.getBuilder();
     node.operand->accept(*this);
     switch (node.op) {
-        case TokenType::MINUS: m_lastValue = builder.CreateNeg(m_lastValue, "neg"); break;
-        case TokenType::NOT:   m_lastValue = builder.CreateNot(m_lastValue, "not"); break;
+        case TokenType::MINUS:
+            if (m_lastVarType == VarType::FLOAT)
+                m_lastValue = builder.CreateFNeg(m_lastValue, "fneg");
+            else
+                m_lastValue = builder.CreateNeg(m_lastValue, "neg");
+            break;
+        case TokenType::NOT:
+            if (m_lastVarType == VarType::FLOAT)
+                throw std::runtime_error("NOT operator does not support float");
+            m_lastValue = builder.CreateNot(m_lastValue, "not");
+            break;
         default: throw std::runtime_error("Unsupported unary operator in codegen");
     }
 }
@@ -92,6 +185,7 @@ void CodeGenVisitor::visit(const LetNode& node)
     if (node.hasTypeAnnotation && node.isArray) {
         VarType elemVarType = VarType::INT;
         if      (node.annotatedType == "int")    elemVarType = VarType::INT;
+        else if (node.annotatedType == "float")  elemVarType = VarType::FLOAT;
         else if (node.annotatedType == "bool")   elemVarType = VarType::BOOL;
         else if (node.annotatedType == "string") elemVarType = VarType::STRING;
 
@@ -111,9 +205,13 @@ void CodeGenVisitor::visit(const LetNode& node)
             auto* lit = dynamic_cast<const ArrayLiteralNode*>(node.value.get());
             for (int i = 0; i < size; i++) {
                 lit->elements[i]->accept(*this);
+                llvm::Value* elem = m_lastValue;
+                if (elemLLVM->isDoubleTy() && m_lastVarType == VarType::INT) {
+                    elem = builder.CreateSIToFP(elem, builder.getDoubleTy(), "int2float");
+                }
                 llvm::Value* idx = llvm::ConstantInt::get(builder.getInt32Ty(), i);
                 llvm::Value* ptr = m_cg.getArrayElementPtr(alloc, idx, elemLLVM);
-                builder.CreateStore(m_lastValue, ptr);
+                builder.CreateStore(elem, ptr);
             }
         }
         return;
@@ -122,7 +220,16 @@ void CodeGenVisitor::visit(const LetNode& node)
     // Scalar
     node.value->accept(*this);
     llvm::Value*      val    = m_lastValue;
-    llvm::AllocaInst* alloc  = m_cg.createEntryBlockAlloca(func, node.variableName, val->getType());
+    llvm::Type*       allocTy = val->getType();
+    if (node.hasTypeAnnotation) {
+        VarType annotatedType = stringToVarType(node.annotatedType);
+        allocTy = varTypeToLLVM(annotatedType);
+        if (annotatedType == VarType::FLOAT && m_lastVarType == VarType::INT) {
+            val = builder.CreateSIToFP(val, builder.getDoubleTy(), "int2float");
+            m_lastVarType = VarType::FLOAT;
+        }
+    }
+    llvm::AllocaInst* alloc  = m_cg.createEntryBlockAlloca(func, node.variableName, allocTy);
     builder.CreateStore(val, alloc);
     m_cg.declareVariable(node.variableName, alloc);
 }
@@ -160,6 +267,7 @@ void CodeGenVisitor::visit(const ArrayAccessNode& node)
     }
 
     m_lastValue = builder.CreateLoad(elemTy, ptr, node.name + "_elem");
+    m_lastVarType = llvmTypeToVarType(elemTy);
 }
 
 void CodeGenVisitor::visit(const ArrayAssignNode& node)
@@ -177,6 +285,11 @@ void CodeGenVisitor::visit(const ArrayAssignNode& node)
 
     node.value->accept(*this);
     llvm::Value* val = m_lastValue;
+    if (elemTy->isDoubleTy() && val->getType()->isIntegerTy(32)) {
+        val = builder.CreateSIToFP(val, builder.getDoubleTy(), "int2float");
+    } else if (elemTy->isIntegerTy(32) && val->getType()->isDoubleTy()) {
+        val = builder.CreateFPToSI(val, builder.getInt32Ty(), "float2int");
+    }
 
     llvm::Type* allocatedTy = alloc->getAllocatedType();
     llvm::Value* ptr;
@@ -194,16 +307,35 @@ void CodeGenVisitor::visit(const ArrayAssignNode& node)
 
 void CodeGenVisitor::visit(const AssignmentNode& node)
 {
+    auto& builder = m_cg.getBuilder();
     node.expression->accept(*this);
     llvm::AllocaInst* var = m_cg.lookupVariable(node.variableName);
     if (!var) throw std::runtime_error("Unknown variable: " + node.variableName);
-    m_cg.getBuilder().CreateStore(m_lastValue, var);
+
+    llvm::Type* targetType = var->getAllocatedType();
+    llvm::Value* value = m_lastValue;
+    if (targetType->isDoubleTy() && value->getType()->isIntegerTy(32)) {
+        value = builder.CreateSIToFP(value, builder.getDoubleTy(), "int2float");
+    } else if (targetType->isIntegerTy(32) && value->getType()->isDoubleTy()) {
+        value = builder.CreateFPToSI(value, builder.getInt32Ty(), "float2int");
+    }
+    builder.CreateStore(value, var);
 }
 
 void CodeGenVisitor::visit(const ReturnNode& node)
 {
+    auto& builder = m_cg.getBuilder();
     node.expression->accept(*this);
-    m_cg.getBuilder().CreateRet(m_lastValue);
+
+    llvm::Type* retType = builder.GetInsertBlock()->getParent()->getReturnType();
+    llvm::Value* value = m_lastValue;
+
+    if (retType->isDoubleTy() && value->getType()->isIntegerTy(32))
+        value = builder.CreateSIToFP(value, builder.getDoubleTy(), "int2float");
+    else if (retType->isIntegerTy(32) && value->getType()->isDoubleTy())
+        value = builder.CreateFPToSI(value, builder.getInt32Ty(), "float2int");
+
+    builder.CreateRet(value);
 }
 
 void CodeGenVisitor::visit(const BlockNode& node)
@@ -266,6 +398,7 @@ void CodeGenVisitor::visit(const FunctionNode& node)
     llvm::Type* retType = nullptr;
     if      (node.returnType == "void")   retType = builder.getInt32Ty();
     else if (node.returnType == "int")    retType = builder.getInt32Ty();
+    else if (node.returnType == "float")  retType = builder.getDoubleTy();
     else if (node.returnType == "bool")   retType = builder.getInt1Ty();
     else if (node.returnType == "string") retType = llvm::PointerType::getUnqual(context);
     else throw std::runtime_error("Unsupported return type: " + node.returnType);
@@ -274,12 +407,12 @@ void CodeGenVisitor::visit(const FunctionNode& node)
     std::vector<llvm::Type*> argTypes;
     for (const auto& p : node.parameters) {
         if (p.isArray) {
-            // Arrays decay to a pointer to the element type
             llvm::Type* elemTy = varTypeToLLVM(stringToVarType(p.type));
             argTypes.push_back(llvm::PointerType::getUnqual(context));
-            (void)elemTy; // elemTy used below when registering; opaque ptr for the signature
+            (void)elemTy;
         } else {
             if      (p.type == "int")    argTypes.push_back(builder.getInt32Ty());
+            else if (p.type == "float")  argTypes.push_back(builder.getDoubleTy());
             else if (p.type == "bool")   argTypes.push_back(builder.getInt1Ty());
             else if (p.type == "string") argTypes.push_back(llvm::PointerType::getUnqual(context));
             else throw std::runtime_error("Unsupported parameter type: " + p.type);
@@ -371,10 +504,14 @@ void CodeGenVisitor::visit(const CallNode& node)
 
         // Default: evaluate normally
         argNode->accept(*this);
+        if (expectedTy->isDoubleTy() && m_lastValue->getType()->isIntegerTy(32)) {
+            m_lastValue = builder.CreateSIToFP(m_lastValue, builder.getDoubleTy(), "int2float");
+        }
         args.push_back(m_lastValue);
     }
 
     m_lastValue = builder.CreateCall(function, args, "calltmp");
+    m_lastVarType = llvmTypeToVarType(function->getReturnType());
 }
 
 
@@ -409,7 +546,13 @@ void CodeGenVisitor::visit(const PrintNode& node)
         if (v->getType()->isIntegerTy(1))
             v = builder.CreateZExt(v, builder.getInt32Ty());
         argVals.push_back(v);
-        argTypes.push_back(v->getType()->isPointerTy() ? VarType::STRING : VarType::INT);
+        if (v->getType()->isPointerTy()) {
+            argTypes.push_back(VarType::STRING);
+        } else if (v->getType()->isDoubleTy()) {
+            argTypes.push_back(VarType::FLOAT);
+        } else {
+            argTypes.push_back(VarType::INT);
+        }
     }
 
     std::string fmtStr = convertFormatString(node.formatString, argTypes, node.newline);
@@ -423,6 +566,8 @@ llvm::Value* CodeGenVisitor::toBool(llvm::Value* val)
 {
     auto& builder = m_cg.getBuilder();
     if (val->getType()->isIntegerTy(1)) return val;
+    if (val->getType()->isDoubleTy())
+        return builder.CreateFCmpUNE(val, llvm::ConstantFP::get(builder.getDoubleTy(), 0.0), "tobool");
     return builder.CreateICmpNE(val, llvm::ConstantInt::get(val->getType(), 0), "tobool");
 }
 

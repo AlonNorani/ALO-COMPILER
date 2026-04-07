@@ -1,0 +1,7 @@
+fn main() -> void {
+    let x: float = 5;
+    let y: float = 10;
+    let z: int = 7;
+    let a: float = z;
+    println!("x={} y={} z={} a={}", x, y, z, a);
+}

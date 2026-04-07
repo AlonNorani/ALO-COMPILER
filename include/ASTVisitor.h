@@ -16,6 +16,8 @@ struct ReturnNode;
 struct CallNode;
 struct PrintNode;
 struct StringNode;
+struct FloatNode;
+struct CastNode;
 struct ArrayLiteralNode;
 struct ArrayAccessNode;
 struct ArrayAssignNode;
@@ -24,6 +26,7 @@ struct ASTVisitor {
     virtual ~ASTVisitor() = default;
 
     virtual void visit(const NumberNode&     node) = 0;
+    virtual void visit(const FloatNode&      node) = 0;
     virtual void visit(const BinaryOpNode&   node) = 0;
     virtual void visit(const UnaryOpNode&    node) = 0;
     virtual void visit(const VariableNode&   node) = 0;
@@ -38,6 +41,7 @@ struct ASTVisitor {
     virtual void visit(const CallNode&       node) = 0;
     virtual void visit(const PrintNode&      node) = 0;
     virtual void visit(const StringNode&     node) = 0;
+    virtual void visit(const CastNode&       node) = 0;
     virtual void visit(const ArrayLiteralNode& node) = 0;
     virtual void visit(const ArrayAccessNode&  node) = 0;
     virtual void visit(const ArrayAssignNode&  node) = 0;
