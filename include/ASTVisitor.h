@@ -16,25 +16,33 @@ struct ReturnNode;
 struct CallNode;
 struct PrintNode;
 struct StringNode;
+// Array nodes (NEW)
+struct ArrayLiteralNode;
+struct ArrayAccessNode;
+struct ArrayAssignNode;
 
 struct ASTVisitor {
     virtual ~ASTVisitor() = default;
 
-    virtual void visit(const NumberNode& node) = 0;
-    virtual void visit(const BinaryOpNode& node) = 0;
-    virtual void visit(const UnaryOpNode& node) = 0;
-    virtual void visit(const VariableNode& node) = 0;
+    virtual void visit(const NumberNode&     node) = 0;
+    virtual void visit(const BinaryOpNode&   node) = 0;
+    virtual void visit(const UnaryOpNode&    node) = 0;
+    virtual void visit(const VariableNode&   node) = 0;
     virtual void visit(const AssignmentNode& node) = 0;
-    virtual void visit(const BlockNode& node) = 0;
-    virtual void visit(const IfNode& node) = 0;
-    virtual void visit(const WhileNode& node) = 0;
-    virtual void visit(const BoolNode& node) = 0;
-    virtual void visit(const LetNode& node) = 0;
-    virtual void visit(const FunctionNode& node) = 0;
-    virtual void visit(const ReturnNode& node) = 0;
-    virtual void visit(const CallNode& node) = 0;
-    virtual void visit(const PrintNode& node) = 0;
-    virtual void visit(const StringNode& node) = 0;
+    virtual void visit(const BlockNode&      node) = 0;
+    virtual void visit(const IfNode&         node) = 0;
+    virtual void visit(const WhileNode&      node) = 0;
+    virtual void visit(const BoolNode&       node) = 0;
+    virtual void visit(const LetNode&        node) = 0;
+    virtual void visit(const FunctionNode&   node) = 0;
+    virtual void visit(const ReturnNode&     node) = 0;
+    virtual void visit(const CallNode&       node) = 0;
+    virtual void visit(const PrintNode&      node) = 0;
+    virtual void visit(const StringNode&     node) = 0;
+    // Array visitors (NEW)
+    virtual void visit(const ArrayLiteralNode& node) = 0;
+    virtual void visit(const ArrayAccessNode&  node) = 0;
+    virtual void visit(const ArrayAssignNode&  node) = 0;
 };
 
 #endif

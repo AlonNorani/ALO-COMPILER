@@ -1,353 +1,358 @@
 #include "SemanticAnalyzer.h"
 
-SemanticAnalyzer::SemanticAnalyzer()
+SemanticAnalyzer::SemanticAnalyzer() { enterScope(); }
+SemanticAnalyzer::~SemanticAnalyzer() {}
+
+void SemanticAnalyzer::analyze(const std::vector<std::unique_ptr<ASTNode>>& ast)
 {
-    enterScope(); // start with global scope
+    for (const auto& node : ast) node->accept(*this);
 }
 
-SemanticAnalyzer::~SemanticAnalyzer()
+
+void SemanticAnalyzer::visit(const NumberNode&) { m_currentType = VarType::INT;    }
+void SemanticAnalyzer::visit(const BoolNode&)   { m_currentType = VarType::BOOL;   }
+void SemanticAnalyzer::visit(const StringNode&) { m_currentType = VarType::STRING; }
+
+
+void SemanticAnalyzer::visit(const LetNode& node)
 {
+    if (node.hasTypeAnnotation && node.isArray) {
+        VarType elemType = stringToVarType(node.annotatedType);
+        int     size     = node.arraySize;
 
-}
+        if (node.value) {
+            auto* lit = dynamic_cast<const ArrayLiteralNode*>(node.value.get());
+            if (!lit)
+                throw std::runtime_error(
+                    "Array '" + node.variableName + "' must be initialised with an array literal");
 
+            if (size == -1)
+                size = static_cast<int>(lit->elements.size());
+            else if (static_cast<int>(lit->elements.size()) != size)
+                throw std::runtime_error(
+                    "Array '" + node.variableName + "' size mismatch");
 
-void SemanticAnalyzer::analyze(const std::vector<std::unique_ptr<ASTNode>>& ast) {
-    for (const auto& node : ast) {
-        node->accept(*this); // use visitor pattern to analyze each node
+            for (const auto& elem : lit->elements) {
+                elem->accept(*this);
+                if (m_currentType != elemType)
+                    throw std::runtime_error(
+                        "Type mismatch in array literal for '" + node.variableName + "'");
+            }
+        } else if (size <= 0) {
+            throw std::runtime_error(
+                "Array '" + node.variableName + "' without initialiser needs explicit size");
+        }
+
+        if (!declareVariable(node.variableName, VarType::ARRAY, node.isMutable, elemType, size))
+            throw std::runtime_error("Variable already declared: " + node.variableName);
+
+        m_currentType = VarType::ARRAY;
+        return;
     }
+
+    // Scalar
+    if (!node.value)
+        throw std::runtime_error("Variable '" + node.variableName + "' must have an initialiser");
+
+    node.value->accept(*this);
+    VarType varType = m_currentType;
+
+    if (node.hasTypeAnnotation) {
+        VarType annotated = stringToVarType(node.annotatedType);
+        if (varType != annotated)
+            throw std::runtime_error("Type mismatch in declaration of '" + node.variableName + "'");
+        varType = annotated;
+    }
+
+    if (!declareVariable(node.variableName, varType, node.isMutable))
+        throw std::runtime_error("Variable already declared: " + node.variableName);
 }
 
-void SemanticAnalyzer::visit(const NumberNode& node)
+
+void SemanticAnalyzer::visit(const ArrayLiteralNode& node)
 {
-    m_currentType = VarType::INT; 
+    if (node.elements.empty())
+        throw std::runtime_error("Array literal must not be empty");
+
+    node.elements[0]->accept(*this);
+    VarType firstType = m_currentType;
+
+    for (size_t i = 1; i < node.elements.size(); i++) {
+        node.elements[i]->accept(*this);
+        if (m_currentType != firstType)
+            throw std::runtime_error("All elements of an array literal must have the same type");
+    }
+
+    m_currentElementType = firstType;
+    m_currentType        = VarType::ARRAY;
 }
+
+void SemanticAnalyzer::visit(const ArrayAccessNode& node)
+{
+    auto var = lookupVariable(node.name);
+    if (!var) throw std::runtime_error("Undefined variable: " + node.name);
+    if (var->get().type != VarType::ARRAY)
+        throw std::runtime_error("'" + node.name + "' is not an array");
+
+    node.index->accept(*this);
+    if (m_currentType != VarType::INT)
+        throw std::runtime_error("Array index must be int");
+
+    m_currentElementType = var->get().elementType;
+    m_currentType        = var->get().elementType;
+}
+
+void SemanticAnalyzer::visit(const ArrayAssignNode& node)
+{
+    auto var = lookupVariable(node.name);
+    if (!var) throw std::runtime_error("Undefined variable: " + node.name);
+    if (var->get().type != VarType::ARRAY)
+        throw std::runtime_error("'" + node.name + "' is not an array");
+    if (!var->get().mutableFlag)
+        throw std::runtime_error("Cannot assign to immutable array: " + node.name);
+
+    node.index->accept(*this);
+    if (m_currentType != VarType::INT)
+        throw std::runtime_error("Array index must be int");
+
+    node.value->accept(*this);
+    if (m_currentType != var->get().elementType)
+        throw std::runtime_error("Type mismatch in array assignment to '" + node.name + "'");
+}
+
 
 void SemanticAnalyzer::visit(const AssignmentNode& node)
 {
-    auto var = lookupVariable(node.variableName); // look for the variable being assigned to
-    if (!var) 
-        throw std::runtime_error("Undefined variable: " + node.variableName);
-    if(var->get().mutableFlag == false) {
+    auto var = lookupVariable(node.variableName);
+    if (!var) throw std::runtime_error("Undefined variable: " + node.variableName);
+    if (!var->get().mutableFlag)
         throw std::runtime_error("Cannot assign to immutable variable: " + node.variableName);
-    }
-    node.expression->accept(*this); // analyze the expression being assigned
-    
-    if(var->get().type != m_currentType) {
-        throw std::runtime_error("Type mismatch in assignment to variable: " + node.variableName);
-    }
-    
+    node.expression->accept(*this);
+    if (var->get().type != m_currentType)
+        throw std::runtime_error("Type mismatch in assignment to: " + node.variableName);
 }
 
 void SemanticAnalyzer::visit(const BinaryOpNode& node)
 {
-    node.left->accept(*this);
-    VarType leftType = m_currentType;
+    node.left->accept(*this);  VarType leftType  = m_currentType;
+    node.right->accept(*this); VarType rightType = m_currentType;
 
-    node.right->accept(*this);
-    VarType rightType = m_currentType;
-
-    switch (node.op)
-    {
-        case TokenType::PLUS:
-        case TokenType::MINUS:
-        case TokenType::STAR:
-        case TokenType::SLASH:
-        {
+    switch (node.op) {
+        case TokenType::PLUS: case TokenType::MINUS:
+        case TokenType::STAR: case TokenType::SLASH:
             if (leftType != VarType::INT || rightType != VarType::INT)
                 throw std::runtime_error("Arithmetic operations require integers");
-            
-            if (node.op == TokenType::SLASH) {
-                if(auto literal = dynamic_cast<const NumberNode*>(node.right.get())) {
-                    if(literal->value == 0) {
-                        throw std::runtime_error("Division by zero");
-                    }
-                }
-            }
-            m_currentType = VarType::INT;
-            break;
-        }
+            if (node.op == TokenType::SLASH)
+                if (auto* lit = dynamic_cast<const NumberNode*>(node.right.get()))
+                    if (lit->value == 0) throw std::runtime_error("Division by zero");
+            m_currentType = VarType::INT; break;
 
-        case TokenType::GREATER:
-        case TokenType::LESS:
-        case TokenType::GREATER_EQUAL:
-        case TokenType::LESS_EQUAL:
-        {
+        case TokenType::GREATER: case TokenType::LESS:
+        case TokenType::GREATER_EQUAL: case TokenType::LESS_EQUAL:
             if (leftType != VarType::INT || rightType != VarType::INT)
                 throw std::runtime_error("Comparison operators require integers");
+            m_currentType = VarType::BOOL; break;
 
-            m_currentType = VarType::BOOL;
-            break;
-        }
-
-        case TokenType::DOUBLE_EQUAL:
-        case TokenType::NOT_EQUAL:
-        {
+        case TokenType::DOUBLE_EQUAL: case TokenType::NOT_EQUAL:
             if (leftType != rightType)
-                throw std::runtime_error("Equality comparison requires operands of the same type");
+                throw std::runtime_error("Equality comparison requires same types");
+            m_currentType = VarType::BOOL; break;
 
-            m_currentType = VarType::BOOL;
-            break;
-        }
-
-        case TokenType::LOGICAL_AND:
-        case TokenType::LOGICAL_OR:
-        {
-            if ((leftType != VarType::BOOL && leftType != VarType::INT) ||
+        case TokenType::LOGICAL_AND: case TokenType::LOGICAL_OR:
+            if ((leftType  != VarType::BOOL && leftType  != VarType::INT) ||
                 (rightType != VarType::BOOL && rightType != VarType::INT))
-            {
-                throw std::runtime_error("Logical operations require bool or int operands");
-            }
+                throw std::runtime_error("Logical operations require bool or int");
+            m_currentType = VarType::BOOL; break;
 
-            m_currentType = VarType::BOOL;
-            break;
-        }
-
-        default:
-            throw std::runtime_error("Unsupported binary operator");
+        default: throw std::runtime_error("Unsupported binary operator");
     }
 }
 
 void SemanticAnalyzer::visit(const VariableNode& node)
 {
-    auto var = lookupVariable(node.name); // look for the variable
-    if (!var) {
-        throw std::runtime_error("Undefined variable: " + node.name);
-    }
-    m_currentType = var->get().type; 
+    auto var = lookupVariable(node.name);
+    if (!var) throw std::runtime_error("Undefined variable: " + node.name);
+    m_currentType = var->get().type;
+    if (m_currentType == VarType::ARRAY)
+        m_currentElementType = var->get().elementType;
 }
 
 void SemanticAnalyzer::visit(const BlockNode& node)
 {
-    enterScope(); // enter a new scope for the block
-    for(const auto& stmt : node.statements) {
-        stmt->accept(*this); // analyze each statement in the block
-    }
-    exitScope(); // exit the block scope
+    enterScope();
+    for (const auto& stmt : node.statements) stmt->accept(*this);
+    exitScope();
 }
 
 void SemanticAnalyzer::visit(const IfNode& node)
 {
-    node.condition->accept(*this); 
-    if (m_currentType != VarType::BOOL && m_currentType != VarType::INT) {
-        throw std::runtime_error("Condition in 'if' statement must be of type bool");
-    }
-
-    node.thenBranch->accept(*this); 
-    if(node.elseBranch) { 
-        node.elseBranch->accept(*this); // analyze the else branch if it exists
-    }
+    node.condition->accept(*this);
+    if (m_currentType != VarType::BOOL && m_currentType != VarType::INT)
+        throw std::runtime_error("If condition must be bool");
+    node.thenBranch->accept(*this);
+    if (node.elseBranch) node.elseBranch->accept(*this);
 }
 
 void SemanticAnalyzer::visit(const WhileNode& node)
 {
-    node.condition->accept(*this); // analyze the loop condition
-    if(m_currentType != VarType::BOOL) {
-        throw std::runtime_error("Condition in 'while' statement must be of type bool");
-    }
-    node.body->accept(*this); // analyze the loop body
-}
-
-void SemanticAnalyzer::visit(const BoolNode& node)
-{
-    m_currentType = VarType::BOOL;
-}
-
-void SemanticAnalyzer::visit(const LetNode& node)
-{
-    node.value->accept(*this); // analyze the initializer expression
-    VarType varType = m_currentType; // get the type of the initializer
-
-    if (!declareVariable(node.variableName, varType, node.isMutable)) {
-        throw std::runtime_error("Variable already declared in this scope: " + node.variableName);
-    }
+    node.condition->accept(*this);
+    if (m_currentType != VarType::BOOL)
+        throw std::runtime_error("While condition must be bool");
+    node.body->accept(*this);
 }
 
 void SemanticAnalyzer::visit(const UnaryOpNode& node)
 {
     node.operand->accept(*this);
-    VarType operandType = m_currentType;
-
-    switch (node.op)
-    {
+    switch (node.op) {
         case TokenType::NOT:
-        {
-            if (operandType != VarType::BOOL && operandType != VarType::INT)
-                throw std::runtime_error("Logical NOT requires bool or int operand");
-
-            m_currentType = VarType::BOOL;
-            break;
-        }
-
+            if (m_currentType != VarType::BOOL && m_currentType != VarType::INT)
+                throw std::runtime_error("NOT requires bool or int");
+            m_currentType = VarType::BOOL; break;
         case TokenType::MINUS:
-        {
-            if (operandType != VarType::INT)
-                throw std::runtime_error("Unary minus requires integer operand");
-
-            m_currentType = VarType::INT;
-            break;
-        }
-
-        default:
-            throw std::runtime_error("Unsupported unary operator");
+            if (m_currentType != VarType::INT)
+                throw std::runtime_error("Unary minus requires int");
+            m_currentType = VarType::INT; break;
+        default: throw std::runtime_error("Unsupported unary operator");
     }
 }
 
 void SemanticAnalyzer::visit(const FunctionNode& node)
 {
-    if(m_functionsTable.find(node.name) != m_functionsTable.end()) {
+    if (m_functionsTable.count(node.name))
         throw std::runtime_error("Function already declared: " + node.name);
-    }
 
     FunctionInfo info;
-
-    for(auto& param : node.parameters)
-        info.paramTypes.push_back(stringToVarType(param.type));
-
+    for (auto& p : node.parameters) {
+        ParamInfo pi;
+        pi.isArray  = p.isArray;
+        if (p.isArray) {
+            pi.varType  = VarType::ARRAY;
+            pi.elemType = stringToVarType(p.type);
+        } else {
+            pi.varType  = stringToVarType(p.type);
+            pi.elemType = VarType::INT; // irrelevant for scalars
+        }
+        info.params.push_back(pi);
+    }
     info.returnType = stringToVarType(node.returnType);
-
     m_functionsTable[node.name] = info;
 
-    VarType returnType = info.returnType;
+    m_currentFunctionReturnType = info.returnType;
+    m_foundReturn               = false;
+    m_insideFunction            = true;
 
-    m_currentFunctionReturnType = returnType;
-    m_foundReturn = false;
-
-    m_insideFunction = true;
     enterScope();
-
-    for(auto& param : node.parameters)
-    {
-        declareVariable(param.name, stringToVarType(param.type), false);
+    for (size_t i = 0; i < node.parameters.size(); i++) {
+        const auto& p  = node.parameters[i];
+        const auto& pi = info.params[i];
+        if (pi.isArray) {
+            // Declare as ARRAY; size -1 (pointer — no compile-time size)
+            declareVariable(p.name, VarType::ARRAY,
+                            /*mutable=*/true, pi.elemType, /*size=*/-1);
+        } else {
+            declareVariable(p.name, pi.varType, /*mutable=*/false);
+        }
     }
 
     node.body->accept(*this);
-
     exitScope();
     m_insideFunction = false;
 
-    if(returnType != VarType::VOID && !m_foundReturn)
-    {
+    if (info.returnType != VarType::VOID && !m_foundReturn)
         throw std::runtime_error("Function '" + node.name + "' must return a value");
-    }
-}
-
-void SemanticAnalyzer::enterScope()
-{
-    m_symbolTable.emplace_back(); // Add a new scope, just an empty map
-}
-
-void SemanticAnalyzer::exitScope()
-{
-    if (!m_symbolTable.empty())
-        m_symbolTable.pop_back(); // remove the current scope
-}
-
-bool SemanticAnalyzer::declareVariable(const std::string& name, VarType type, bool mutableFlag)
-{
-    // variables are immutable by default, mutableFlag can be set to true to allow mutation
-    auto& currentScope = m_symbolTable.back();
-
-    if (currentScope.find(name) != currentScope.end()) {
-        return false; // variable already declared in this scope
-    }
-
-    currentScope[name] = VariableInfo{name, type, mutableFlag};
-    return true;
-}
-
-VarType SemanticAnalyzer::stringToVarType(const std::string& typeStr)
-{
-
-    if (typeStr == "int") return VarType::INT;
-    if (typeStr == "float") return VarType::FLOAT;
-    if (typeStr == "string") return VarType::STRING;
-    if (typeStr == "bool") return VarType::BOOL;
-    if (typeStr == "void") return VarType::VOID;
-    throw std::runtime_error("Unknown type: " + typeStr);
-
-}
-
-std::optional<std::reference_wrapper<VariableInfo>> SemanticAnalyzer::lookupVariable(const std::string& name) {
-    // search from inner scope to outer scope
-    for (auto it = m_symbolTable.rbegin(); it != m_symbolTable.rend(); ++it) {
-        auto found = it->find(name); // find the variable in the current scope
-        if (found != it->end()) {
-            return std::ref(found->second); // return reference wrapped in optional
-        }
-    }
-    return std::nullopt; // not found
 }
 
 void SemanticAnalyzer::visit(const ReturnNode& node)
 {
-    if(!m_insideFunction)
-    {
+    if (!m_insideFunction)
         throw std::runtime_error("Return statement outside function");
-    }
     node.expression->accept(*this);
-
-    if(m_currentType != m_currentFunctionReturnType)
-    {
+    if (m_currentType != m_currentFunctionReturnType)
         throw std::runtime_error("Return type mismatch");
-    }
-
     m_foundReturn = true;
 }
 
+
 void SemanticAnalyzer::visit(const CallNode& node)
 {
-    // Check that the function exists
     auto it = m_functionsTable.find(node.functionName);
-    if(it == m_functionsTable.end()) {
+    if (it == m_functionsTable.end())
         throw std::runtime_error("Call to undefined function: " + node.functionName);
-    }
 
     const FunctionInfo& info = it->second;
+    if (node.arguments.size() != info.params.size())
+        throw std::runtime_error(
+            "Function '" + node.functionName + "' expects " +
+            std::to_string(info.params.size()) + " arguments, got " +
+            std::to_string(node.arguments.size()));
 
-    // Check argument count
-    if(node.arguments.size() != info.paramTypes.size()) {
-        throw std::runtime_error("Function '" + node.functionName +
-                                 "' expects " + std::to_string(info.paramTypes.size()) +
-                                 " arguments, got " + std::to_string(node.arguments.size()));
-    }
-
-    // Analyze arguments and check types
-    for(size_t i = 0; i < node.arguments.size(); i++) {
+    for (size_t i = 0; i < node.arguments.size(); i++) {
         node.arguments[i]->accept(*this);
-        if(m_currentType != info.paramTypes[i]) {
-            throw std::runtime_error("Type mismatch for argument " + std::to_string(i+1) +
-                                     " in call to function '" + node.functionName + "'");
+        const ParamInfo& pi = info.params[i];
+
+        if (pi.isArray) {
+            // Argument must be an array of the right element type
+            if (m_currentType != VarType::ARRAY)
+                throw std::runtime_error(
+                    "Argument " + std::to_string(i + 1) +
+                    " to '" + node.functionName + "' must be an array");
+            if (m_currentElementType != pi.elemType)
+                throw std::runtime_error(
+                    "Array element type mismatch for argument " +
+                    std::to_string(i + 1) + " in call to '" + node.functionName + "'");
+        } else {
+            if (m_currentType != pi.varType)
+                throw std::runtime_error(
+                    "Type mismatch for argument " + std::to_string(i + 1) +
+                    " in call to '" + node.functionName + "'");
         }
     }
 
-    // The type of a function call expression is the function's return type
     m_currentType = info.returnType;
 }
 
 void SemanticAnalyzer::visit(const PrintNode& node)
 {
-    // If there are no args but format string exists, it's fine
-    // If args exist, analyze them
     for (auto& arg : node.args) {
-        if (!arg) {
-            throw std::runtime_error("Print/Println argument is null");
-        }
-
-        arg->accept(*this); // recursively analyze expression
-
-        // Only allow int or bool for now
-        if(m_currentType != VarType::INT && m_currentType != VarType::BOOL && m_currentType != VarType::STRING && m_currentType != VarType::FLOAT) { 
-            throw std::runtime_error("Print/Println only supports int, bool, float or string arguments");
-        }
+        if (!arg) throw std::runtime_error("Print argument is null");
+        arg->accept(*this);
+        if (m_currentType != VarType::INT    && m_currentType != VarType::BOOL &&
+            m_currentType != VarType::STRING && m_currentType != VarType::FLOAT)
+            throw std::runtime_error("Print only supports int, bool, float, or string");
     }
-
-    // Print statements themselves are void
     m_currentType = VarType::VOID;
 }
 
-void SemanticAnalyzer::visit(const StringNode& node)
+
+void SemanticAnalyzer::enterScope() { m_symbolTable.emplace_back(); }
+void SemanticAnalyzer::exitScope()  { if (!m_symbolTable.empty()) m_symbolTable.pop_back(); }
+
+bool SemanticAnalyzer::declareVariable(const std::string& name, VarType type,
+                                        bool mutableFlag, VarType elementType, int arraySize)
 {
-    m_currentType = VarType::STRING;
+    auto& scope = m_symbolTable.back();
+    if (scope.count(name)) return false;
+    scope[name] = VariableInfo{name, type, mutableFlag, elementType, arraySize};
+    return true;
 }
 
+VarType SemanticAnalyzer::stringToVarType(const std::string& s)
+{
+    if (s == "int")    return VarType::INT;
+    if (s == "float")  return VarType::FLOAT;
+    if (s == "string") return VarType::STRING;
+    if (s == "bool")   return VarType::BOOL;
+    if (s == "void")   return VarType::VOID;
+    throw std::runtime_error("Unknown type: " + s);
+}
 
+std::optional<std::reference_wrapper<VariableInfo>>
+SemanticAnalyzer::lookupVariable(const std::string& name)
+{
+    for (auto it = m_symbolTable.rbegin(); it != m_symbolTable.rend(); ++it) {
+        auto found = it->find(name);
+        if (found != it->end()) return std::ref(found->second);
+    }
+    return std::nullopt;
+}

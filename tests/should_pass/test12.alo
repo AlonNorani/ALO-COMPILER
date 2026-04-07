@@ -2,4 +2,7 @@ fn main() -> void {
     let x = 5;
     let y = 3;
     let z = x == y;
+    println!("{}", x / y);
+    let arr: string[] = ["hello", "world"];
+    println!("{} {}", arr[0], arr[1]);
 }

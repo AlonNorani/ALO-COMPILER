@@ -2,7 +2,7 @@
 #define TOKEN_H
 #include <string>
 #include <unordered_map>
-//enum of all tokens
+
 enum class TokenType
 {
     // general Types
@@ -14,7 +14,7 @@ enum class TokenType
     // special tokens
     EOF_TOKEN,
     INVALID_TOKEN,
-     // Identifiers and literals
+    // Identifiers and literals
     IDENTIFIER,
     NUMBER,
     STRING,
@@ -22,10 +22,10 @@ enum class TokenType
     TRUE,
     FALSE,
     // Keywords
-    LET, // let is for variable declaration
-    MUT, // mut is for mutable variable declaration
+    LET,
+    MUT,
     FN,
-    ARROW, // for function return type annotation
+    ARROW,
     IF,
     ELSE,
     RETURN,
@@ -45,12 +45,13 @@ enum class TokenType
     LOGICAL_OR,   
     // Unary operators
     NOT,
-
     // Delimiters
     LPAREN,          
     RPAREN,           
     LBRACE,           
-    RBRACE,          
+    RBRACE,
+    LBRACKET,         // [   NEW
+    RBRACKET,         // ]   NEW
     SEMICOLON,        
     COMMA, 
     COLON, 
@@ -60,32 +61,34 @@ enum class TokenType
     // printing
     PRINT_MACRO,
     PRINTLN_MACRO,
-
-
 };
-const std::string operators = "+-*/=<>!&|"; // set of operator characters
-const std::string delimiters = "();,{}[]:"; // set of delimiter characters
+
+const std::string operators  = "+-*/=<>!&|";
+const std::string delimiters = "();,{}[]:";   // [ and ] already present
+
 const std::unordered_map<std::string, TokenType> dataTypeKeywords = {
-    {"int", TokenType::INT},
-    {"float", TokenType::FLOAT},
+    {"int",    TokenType::INT},
+    {"float",  TokenType::FLOAT},
     {"string", TokenType::STRING_TYPE},
-    {"bool", TokenType::BOOL},
-    {"void", TokenType::VOID}
+    {"bool",   TokenType::BOOL},
+    {"void",   TokenType::VOID}
 };
+
 static std::unordered_map<std::string, TokenType> keywords = {
-    {"let", TokenType::LET},
-    {"mut", TokenType::MUT},
-    {"fn", TokenType::FN},
-    {"if", TokenType::IF},
-    {"else", TokenType::ELSE},
-    {"return", TokenType::RETURN},
-    {"true", TokenType::TRUE},
-    {"false", TokenType::FALSE},
-    {"while", TokenType::WHILE},
-    {"for", TokenType::FOR},
-    {"print!", TokenType::PRINT_MACRO},
-    {"println!", TokenType::PRINTLN_MACRO}
+    {"let",     TokenType::LET},
+    {"mut",     TokenType::MUT},
+    {"fn",      TokenType::FN},
+    {"if",      TokenType::IF},
+    {"else",    TokenType::ELSE},
+    {"return",  TokenType::RETURN},
+    {"true",    TokenType::TRUE},
+    {"false",   TokenType::FALSE},
+    {"while",   TokenType::WHILE},
+    {"for",     TokenType::FOR},
+    {"print!",  TokenType::PRINT_MACRO},
+    {"println!",TokenType::PRINTLN_MACRO}
 };
+
 static std::unordered_map<char, TokenType> singleCharOperatorTokens = {
     {'+', TokenType::PLUS},
     {'-', TokenType::MINUS},
@@ -95,8 +98,8 @@ static std::unordered_map<char, TokenType> singleCharOperatorTokens = {
     {'<', TokenType::LESS},
     {'>', TokenType::GREATER},
     {'!', TokenType::NOT},
-
 };
+
 static std::unordered_map<std::string, TokenType> doubleCharOperatorTokens = {
     {"==", TokenType::DOUBLE_EQUAL},
     {"!=", TokenType::NOT_EQUAL},
@@ -106,20 +109,25 @@ static std::unordered_map<std::string, TokenType> doubleCharOperatorTokens = {
     {"||", TokenType::LOGICAL_OR},
     {"->", TokenType::ARROW},
 };
+
 static std::unordered_map<char, TokenType> delimiterTokens = {
     {'(', TokenType::LPAREN},
     {')', TokenType::RPAREN},
     {'{', TokenType::LBRACE},
     {'}', TokenType::RBRACE},
+    {'[', TokenType::LBRACKET},   // NEW
+    {']', TokenType::RBRACKET},   // NEW
     {';', TokenType::SEMICOLON},
-    {',', TokenType::COMMA}
+    {',', TokenType::COMMA},
+    {':', TokenType::COLON},
 };
+
 struct Token
 {
-    TokenType type;
+    TokenType   type;
     std::string lexeme;
-    int line;           // Line number where token starts (for errors)
-    int column;  
+    int         line;
+    int         column;  
 };
 
 #endif

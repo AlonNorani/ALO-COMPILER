@@ -1,6 +1,13 @@
+fn arr_func(arr: int[]) -> void
+{
+    println!("{}", arr[0]);
+}
+
 fn main() -> void {
     let x = 5;
     if (1 && x) {
         let y = 3;
     }
+    let arr: int[] = [1, 2, 3];
+    arr_func(arr);
 }
