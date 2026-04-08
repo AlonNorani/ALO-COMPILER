@@ -1,0 +1,5 @@
+fn main() -> void {
+    for i in 1.0..5 {
+        println!("{}", i);
+    }
+}

@@ -73,6 +73,7 @@ public:
     virtual void visit(const ArrayLiteralNode& node) override;
     virtual void visit(const ArrayAccessNode&  node) override;
     virtual void visit(const ArrayAssignNode&  node) override;
+    virtual void visit(const ForNode&          node) override;
 
     VarType getCurrentElementType() const { return m_currentElementType; }
 

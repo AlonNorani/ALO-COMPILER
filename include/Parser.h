@@ -30,6 +30,7 @@ private:
     std::unique_ptr<BlockNode>    parseBlock();
     std::unique_ptr<IfNode>       parseIfStatement();
     std::unique_ptr<WhileNode>    parseWhileStatement();
+    std::unique_ptr<ASTNode>      parseForStatement();
     std::unique_ptr<FunctionNode> parseFunction();
     std::unique_ptr<ASTNode>      parseReturnStatement();
     std::unique_ptr<ASTNode>      parsePrint(bool newline);

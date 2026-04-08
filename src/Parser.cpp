@@ -42,6 +42,7 @@ std::unique_ptr<ASTNode> Parser::parseStatement()
     if (currentToken.type == TokenType::LET)           return parseLetStatement();
     if (currentToken.type == TokenType::IF)            return parseIfStatement();
     if (currentToken.type == TokenType::WHILE)         return parseWhileStatement();
+    if (currentToken.type == TokenType::FOR)           return parseForStatement();
     if (currentToken.type == TokenType::LBRACE)        return parseBlock();
 
     if (currentToken.type == TokenType::IDENTIFIER) {
@@ -323,6 +324,26 @@ std::unique_ptr<WhileNode> Parser::parseWhileStatement()
     auto cond = parseExpression();
     expect(TokenType::RPAREN, "Expected ')'");
     return std::make_unique<WhileNode>(std::move(cond), parseBlock());
+}
+
+std::unique_ptr<ASTNode> Parser::parseForStatement()
+{
+    expect(TokenType::FOR, "Expected 'for'");
+    if (currentToken.type != TokenType::IDENTIFIER)
+        throw std::runtime_error("Expected iterator name after 'for'");
+
+    std::string iteratorName = currentToken.lexeme;
+    advance();
+    expect(TokenType::IN, "Expected 'in' after iterator name in for loop");
+
+    auto iterable = parseExpression();
+    std::unique_ptr<ASTNode> endExpr;
+    if (currentToken.type == TokenType::RANGE) {
+        advance();
+        endExpr = parseExpression();
+    }
+
+    return std::make_unique<ForNode>(iteratorName, std::move(iterable), std::move(endExpr), parseBlock());
 }
 
 std::unique_ptr<FunctionNode> Parser::parseFunction()

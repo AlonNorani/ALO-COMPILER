@@ -81,7 +81,8 @@ Token Lexer::lexNumber()
     std::string value;
     bool hasDot = false;
 
-    while (isdigit(currentChar()) || currentChar() == '.') {
+    while (isdigit(currentChar()) ||
+          (currentChar() == '.' && !hasDot && peekChar() != '.')) {
         if (currentChar() == '.') {
             if (hasDot)
                 return Token{TokenType::INVALID_TOKEN, value, startLine, startColumn};

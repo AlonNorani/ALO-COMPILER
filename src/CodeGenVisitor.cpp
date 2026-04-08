@@ -388,6 +388,113 @@ void CodeGenVisitor::visit(const WhileNode& node)
 }
 
 
+void CodeGenVisitor::visit(const ForNode& node)
+{
+    auto& builder = m_cg.getBuilder();
+    llvm::Function* func = builder.GetInsertBlock()->getParent();
+
+    m_cg.pushScope();
+
+    llvm::AllocaInst* iterAlloc = m_cg.createEntryBlockAlloca(func, node.iteratorName, builder.getInt32Ty());
+    m_cg.declareVariable(node.iteratorName, iterAlloc);
+
+    if (node.isRange()) {
+        node.iterable->accept(*this);
+        builder.CreateStore(m_lastValue, iterAlloc);
+
+        llvm::BasicBlock* condBB = llvm::BasicBlock::Create(builder.getContext(), "forcond", func);
+        llvm::BasicBlock* bodyBB = llvm::BasicBlock::Create(builder.getContext(), "forbody", func);
+        llvm::BasicBlock* endBB  = llvm::BasicBlock::Create(builder.getContext(), "forend",  func);
+
+        builder.CreateBr(condBB);
+        builder.SetInsertPoint(condBB);
+
+        llvm::Value* currentValue = builder.CreateLoad(iterAlloc->getAllocatedType(), iterAlloc, node.iteratorName + "_val");
+        node.endExpr->accept(*this);
+        llvm::Value* endValue = m_lastValue;
+        llvm::Value* cond = builder.CreateICmpSLT(currentValue, endValue, "forcmp");
+        builder.CreateCondBr(cond, bodyBB, endBB);
+
+        builder.SetInsertPoint(bodyBB);
+        node.body->accept(*this);
+        if (!builder.GetInsertBlock()->getTerminator()) {
+            llvm::Value* nextValue = builder.CreateAdd(currentValue,
+                                                 llvm::ConstantInt::get(builder.getInt32Ty(), 1),
+                                                 "nexttmp");
+            builder.CreateStore(nextValue, iterAlloc);
+            builder.CreateBr(condBB);
+        }
+        builder.SetInsertPoint(endBB);
+    } else {
+        // Iterate over array values
+        llvm::AllocaInst* arrayAlloc = nullptr;
+        llvm::Type* arrayElemTy = nullptr;
+
+        if (auto* varNode = dynamic_cast<const VariableNode*>(node.iterable.get())) {
+            arrayAlloc = m_cg.lookupVariable(varNode->name);
+            if (arrayAlloc)
+                arrayElemTy = m_cg.getArrayElementType(varNode->name);
+        }
+
+        if (!arrayAlloc || !arrayElemTy)
+            throw std::runtime_error("Unsupported array iterable in for loop");
+
+        llvm::Value* startPtr = nullptr;
+        llvm::Value* lengthValue = nullptr;
+        llvm::Type* allocatedTy = arrayAlloc->getAllocatedType();
+
+        if (allocatedTy->isArrayTy()) {
+            llvm::Value* zero = llvm::ConstantInt::get(builder.getInt32Ty(), 0);
+            startPtr = builder.CreateInBoundsGEP(allocatedTy, arrayAlloc, {zero, zero}, "arraystart");
+            lengthValue = llvm::ConstantInt::get(builder.getInt32Ty(),
+                                                allocatedTy->getArrayNumElements());
+        } else if (allocatedTy->isPointerTy()) {
+            (void)arrayAlloc;
+            throw std::runtime_error("For loops over parameter arrays are not supported");
+        } else {
+            throw std::runtime_error("Unsupported array iterable in for loop");
+        }
+
+        llvm::AllocaInst* idxAlloc = m_cg.createEntryBlockAlloca(func, node.iteratorName + "_idx", builder.getInt32Ty());
+        builder.CreateStore(llvm::ConstantInt::get(builder.getInt32Ty(), 0), idxAlloc);
+
+        // Declare element variable using current array element type.
+        llvm::AllocaInst* elemAlloc = m_cg.createEntryBlockAlloca(func, node.iteratorName, arrayElemTy);
+        m_cg.declareVariable(node.iteratorName, elemAlloc);
+
+        llvm::BasicBlock* condBB = llvm::BasicBlock::Create(builder.getContext(), "forcond", func);
+        llvm::BasicBlock* bodyBB = llvm::BasicBlock::Create(builder.getContext(), "forbody", func);
+        llvm::BasicBlock* endBB  = llvm::BasicBlock::Create(builder.getContext(), "forend",  func);
+
+        builder.CreateBr(condBB);
+        builder.SetInsertPoint(condBB);
+
+        llvm::Value* currentIndex = builder.CreateLoad(idxAlloc->getAllocatedType(), idxAlloc, node.iteratorName + "_idx_val");
+        llvm::Value* cmp = builder.CreateICmpSLT(currentIndex, lengthValue, "forcmp");
+        builder.CreateCondBr(cmp, bodyBB, endBB);
+
+        builder.SetInsertPoint(bodyBB);
+        llvm::Value* elementPtr = builder.CreateInBoundsGEP(arrayElemTy, startPtr, currentIndex, "elementptr");
+        llvm::Value* element = builder.CreateLoad(arrayElemTy, elementPtr, node.iteratorName + "_elem");
+        builder.CreateStore(element, elemAlloc);
+
+        node.body->accept(*this);
+
+        if (!builder.GetInsertBlock()->getTerminator()) {
+            llvm::Value* nextIdx = builder.CreateAdd(currentIndex,
+                                                    llvm::ConstantInt::get(builder.getInt32Ty(), 1),
+                                                    "nextidx");
+            builder.CreateStore(nextIdx, idxAlloc);
+            builder.CreateBr(condBB);
+        }
+
+        builder.SetInsertPoint(endBB);
+    }
+
+    m_cg.popScope();
+}
+
+
 void CodeGenVisitor::visit(const FunctionNode& node)
 {
     auto& builder = m_cg.getBuilder();
