@@ -40,7 +40,7 @@ void SemanticAnalyzer::visit(const LetNode& node)
                 throw std::runtime_error(
                     "Array '" + node.variableName + "' must be initialised with an array literal");
 
-            if (size == -1)
+            if(size == -1)
                 size = static_cast<int>(lit->elements.size());
             else if (static_cast<int>(lit->elements.size()) != size)
                 throw std::runtime_error(
@@ -240,6 +240,37 @@ void SemanticAnalyzer::visit(const WhileNode& node)
     if (m_currentType != VarType::BOOL)
         throw std::runtime_error("While condition must be bool");
     node.body->accept(*this);
+}
+
+void SemanticAnalyzer::visit(const ForNode& node)
+{
+    if (node.isRange()) {
+        node.iterable->accept(*this);
+        if (m_currentType != VarType::INT)
+            throw std::runtime_error("Range start expression in for loop must be int");
+
+        node.endExpr->accept(*this);
+        if (m_currentType != VarType::INT)
+            throw std::runtime_error("Range end expression in for loop must be int");
+
+        enterScope();
+        if (!declareVariable(node.iteratorName, VarType::INT, true))
+            throw std::runtime_error("Variable already declared in for loop: " + node.iteratorName);
+        node.body->accept(*this);
+        exitScope();
+        return;
+    }
+
+    node.iterable->accept(*this);
+    if (m_currentType != VarType::ARRAY)
+        throw std::runtime_error("For loop iterable must be an array");
+
+    VarType elementType = m_currentElementType;
+    enterScope();
+    if (!declareVariable(node.iteratorName, elementType, true))
+        throw std::runtime_error("Variable already declared in for loop: " + node.iteratorName);
+    node.body->accept(*this);
+    exitScope();
 }
 
 void SemanticAnalyzer::visit(const UnaryOpNode& node)

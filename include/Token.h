@@ -57,13 +57,15 @@ enum class TokenType
     COLON, 
     // control flow
     WHILE,
-    FOR,          
+    FOR,
+    IN,
     // printing
     PRINT_MACRO,
     PRINTLN_MACRO,
+    RANGE,
 };
 
-const std::string operators  = "+-*/=<>!&|";
+const std::string operators  = "+-*/=<>!&|.";
 const std::string delimiters = "();,{}[]:";   // [ and ] already present
 
 const std::unordered_map<std::string, TokenType> dataTypeKeywords = {
@@ -85,6 +87,7 @@ static std::unordered_map<std::string, TokenType> keywords = {
     {"false",   TokenType::FALSE},
     {"while",   TokenType::WHILE},
     {"for",     TokenType::FOR},
+    {"in",      TokenType::IN},
     {"print!",  TokenType::PRINT_MACRO},
     {"println!",TokenType::PRINTLN_MACRO}
 };
@@ -108,6 +111,7 @@ static std::unordered_map<std::string, TokenType> doubleCharOperatorTokens = {
     {"&&", TokenType::LOGICAL_AND},
     {"||", TokenType::LOGICAL_OR},
     {"->", TokenType::ARROW},
+    {"..", TokenType::RANGE},
 };
 
 static std::unordered_map<char, TokenType> delimiterTokens = {

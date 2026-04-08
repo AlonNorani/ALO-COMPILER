@@ -34,6 +34,7 @@ public:
     void visit(const ArrayLiteralNode& node) override;
     void visit(const ArrayAccessNode&  node) override;
     void visit(const ArrayAssignNode&  node) override;
+    void visit(const ForNode&          node) override;
 
 private:
     CodeGenerator& m_cg;

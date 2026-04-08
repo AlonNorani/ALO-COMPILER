@@ -274,6 +274,38 @@ struct WhileNode : ASTNode {
     }
 };
 
+struct ForNode : ASTNode {
+    std::string               iteratorName;
+    std::unique_ptr<ASTNode>  iterable;
+    std::unique_ptr<ASTNode>  endExpr;
+    std::unique_ptr<BlockNode> body;
+
+    ForNode(const std::string& name,
+            std::unique_ptr<ASTNode> iterableExpr,
+            std::unique_ptr<ASTNode> endExpression,
+            std::unique_ptr<BlockNode> b)
+        : iteratorName(name),
+          iterable(std::move(iterableExpr)),
+          endExpr(std::move(endExpression)),
+          body(std::move(b)) {}
+
+    bool isRange() const { return endExpr != nullptr; }
+
+    ACCEPT_VISITOR
+    void print(int indent = 0) const override {
+        std::cout << std::string(indent, ' ') << "For:\n";
+        std::cout << std::string(indent + 2, ' ') << "Iterator: " << iteratorName << "\n";
+        std::cout << std::string(indent + 2, ' ') << "Iterable:\n";
+        iterable->print(indent + 4);
+        if (isRange()) {
+            std::cout << std::string(indent + 2, ' ') << "End:\n";
+            endExpr->print(indent + 4);
+        }
+        std::cout << std::string(indent + 2, ' ') << "Body:\n";
+        body->print(indent + 4);
+    }
+};
+
 struct FunctionNode : ASTNode {
     std::string            name;
     std::vector<Parameter> parameters;
