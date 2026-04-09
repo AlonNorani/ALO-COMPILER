@@ -20,51 +20,12 @@ std::string readFile(const char* filename)
     return buffer.str();
 }
 
-void checkLexer(const std::string& source)
-{
-    Lexer lexer(source);
 
-    std::cout << "=== Lexer check ===" << std::endl;
 
-    Token token;
-    do {
-        token = lexer.getNextToken();
-        std::cout << "Token: " << static_cast<int>(token.type)
-                  << " Lexeme: '" << token.lexeme
-                  << "' Line: " << token.line
-                  << " Column: " << token.column << std::endl;
-    } while (token.type != TokenType::EOF_TOKEN);
 
-    std::cout << std::endl;
-}
 
-void checkParser(const std::string& source)
-{
-    Lexer lexer(source);
-    Parser parser(lexer);
 
-    auto ast = parser.parseProgram();
-
-    std::cout << "=== AST check ===" << std::endl;
-    for (auto& node : ast) {
-        node->print();           // print tree structure
-        std::cout << "Value: " << node->evaluate() << "\n\n"; // optional evaluation
-    }
-}
-
-void checkSemanticAnalyzer(const std::string& source)
-{
-    Lexer lexer(source);
-    Parser parser(lexer);
-    auto ast = parser.parseProgram();
-
-    SemanticAnalyzer analyzer;
-    analyzer.analyze(ast); // will throw if something is wrong
-
-    std::cout << "Semantic analysis completed successfully." << std::endl;
-}
-
-void checkCodeGen(const std::string& source)
+void compile(const std::string& source)
 {
     Lexer lexer(source);
     Parser parser(lexer);
@@ -95,7 +56,7 @@ int main(int argc, char* argv[])
     try {
         std::string source = readFile(argv[1]);
 
-        checkCodeGen(source);
+        compile(source);
     }
     catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << std::endl;
