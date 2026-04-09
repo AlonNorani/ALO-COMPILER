@@ -15,6 +15,8 @@
 #include <llvm/Support/raw_ostream.h>
 #include <system_error>
 
+// CodeGenerator: Manages LLVM context, module, and IR building.
+// Provides utilities for variable allocation, scoping, and array handling.
 using ScopesTable = std::vector<std::unordered_map<std::string, llvm::AllocaInst*>>;
 
 class CodeGenerator

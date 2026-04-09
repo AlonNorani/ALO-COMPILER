@@ -9,6 +9,8 @@
 #include <stdexcept>
 #include "Token.h"
 
+// Defines the Abstract Syntax Tree (AST) node structures.
+// Each node represents a construct in the source code, used for semantic analysis and code generation.
 struct ASTVisitor;
 
 

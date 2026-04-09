@@ -12,6 +12,8 @@
 #include <stdexcept>
 #include "ASTVisitor.h"
 
+// Semantic Analyzer: Performs type checking, scoping, and semantic validation on the AST.
+// Ensures the program is semantically correct before code generation.
 enum class VarType {
     INT,
     FLOAT,

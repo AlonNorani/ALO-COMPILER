@@ -7,6 +7,9 @@
 #include <llvm/IR/Value.h>
 #include "SemanticAnalyzer.h"
 
+// CodeGenVisitor: Traverses the AST and generates LLVM Intermediate Representation (IR).
+// This is the core of code generation, translating high-level constructs into low-level IR instructions.
+// Uses LLVM's IRBuilder to create instructions, manage memory, and handle control flow.
 class CodeGenVisitor : public ASTVisitor
 {
 public:
@@ -47,7 +50,7 @@ private:
                                       bool                        newline);
     llvm::Type*  varTypeToLLVM(VarType vt);
     VarType      llvmTypeToVarType(llvm::Type* type);
-    VarType      stringToVarType(const std::string& s);  // NEW
+    VarType      stringToVarType(const std::string& s);  
 };
 
 #endif

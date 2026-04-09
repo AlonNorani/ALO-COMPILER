@@ -8,6 +8,8 @@
 #include "CodeGenerator.h"
 #include "CodeGenVisitor.h"
 
+// Main compilation entry point: Reads source, lexes, parses, analyzes, generates code.
+// Uses LLVM to compile to executable via intermediate steps.
 std::string readFile(const char* filename)
 {
     std::ifstream file(filename);
@@ -19,11 +21,6 @@ std::string readFile(const char* filename)
     buffer << file.rdbuf();
     return buffer.str();
 }
-
-
-
-
-
 
 void compile(const std::string& source)
 {

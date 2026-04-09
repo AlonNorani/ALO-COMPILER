@@ -1,9 +1,14 @@
 #include "CodeGenVisitor.h"
 
+// CodeGenVisitor implementation: Generates LLVM IR from AST nodes.
+// Each visit method emits the appropriate LLVM instructions for the node type.
+// Complex operations like type promotion and control flow are handled here.
+
 CodeGenVisitor::CodeGenVisitor(CodeGenerator& cg)
     : m_cg(cg), m_lastValue(nullptr), m_lastVarType(VarType::INT)
 {}
 
+// Generates code for the entire program by visiting each top-level node.
 void CodeGenVisitor::generate(const std::vector<std::unique_ptr<ASTNode>>& program)
 {
     for (const auto& node : program) node->accept(*this);
@@ -11,7 +16,7 @@ void CodeGenVisitor::generate(const std::vector<std::unique_ptr<ASTNode>>& progr
 
 llvm::Value* CodeGenVisitor::getValue() { return m_lastValue; }
 
-
+// Converts our VarType enum to LLVM's Type system.
 llvm::Type* CodeGenVisitor::varTypeToLLVM(VarType vt)
 {
     auto& builder = m_cg.getBuilder();
@@ -26,6 +31,7 @@ llvm::Type* CodeGenVisitor::varTypeToLLVM(VarType vt)
     }
 }
 
+// Converts LLVM Type back to our VarType for tracking.
 VarType CodeGenVisitor::llvmTypeToVarType(llvm::Type* type)
 {
     if (type->isDoubleTy()) return VarType::FLOAT;
@@ -85,6 +91,8 @@ void CodeGenVisitor::visit(const BinaryOpNode& node)
     node.left->accept(*this);  llvm::Value* L = m_lastValue; VarType LType = m_lastVarType;
     node.right->accept(*this); llvm::Value* R = m_lastValue; VarType RType = m_lastVarType;
 
+    // Handle mixed int/float operations by promoting ints to floats.
+    // This ensures operations like 5 + 3.2 work correctly.
     bool isFloat = (LType == VarType::FLOAT || RType == VarType::FLOAT);
     if (isFloat) {
         if (LType == VarType::INT)
@@ -253,12 +261,11 @@ void CodeGenVisitor::visit(const ArrayAccessNode& node)
     node.index->accept(*this);
     llvm::Value* idx = m_lastValue;
 
-    // ── Distinguish [N x elemTy] alloca (local) from ptr alloca (param) ──
+    
     llvm::Type* allocatedTy = alloc->getAllocatedType();
     llvm::Value* ptr;
 
     if (allocatedTy->isArrayTy()) {
-        // Local array: use two-index GEP {0, i}
         ptr = m_cg.getArrayElementPtr(alloc, idx, elemTy);
     } else {
         // Array parameter: the alloca holds a pointer; load the pointer first
@@ -354,6 +361,8 @@ void CodeGenVisitor::visit(const IfNode& node)
     node.condition->accept(*this);
     llvm::Value* cond = toBool(m_lastValue);
 
+    // Create basic blocks for then, else, and merge points.
+    // LLVM requires explicit control flow with branches.
     llvm::BasicBlock* thenBB  = llvm::BasicBlock::Create(builder.getContext(), "then",   func);
     llvm::BasicBlock* elseBB  = llvm::BasicBlock::Create(builder.getContext(), "else",   func);
     llvm::BasicBlock* mergeBB = llvm::BasicBlock::Create(builder.getContext(), "ifcont", func);
@@ -373,6 +382,8 @@ void CodeGenVisitor::visit(const WhileNode& node)
     auto& builder = m_cg.getBuilder();
     llvm::Function* func = builder.GetInsertBlock()->getParent();
 
+    // While loops need a condition block, body block, and exit block.
+    // Unconditional branch to condition, then conditional branch to body or exit.
     llvm::BasicBlock* condBB = llvm::BasicBlock::Create(builder.getContext(), "whilecond", func);
     llvm::BasicBlock* bodyBB = llvm::BasicBlock::Create(builder.getContext(), "whilebody", func);
     llvm::BasicBlock* endBB  = llvm::BasicBlock::Create(builder.getContext(), "whileend",  func);

@@ -1,10 +1,13 @@
 #include "Parser.h"
 
+// Parser class: Builds an Abstract Syntax Tree (AST) from tokens using recursive descent.
+// Handles syntax analysis and error reporting.
 Parser::Parser(Lexer& lexer) : lexer(lexer)
 {
     advance();
 }
 
+// Parses the entire program into a list of top-level statements.
 std::vector<std::unique_ptr<ASTNode>> Parser::parseProgram()
 {
     std::vector<std::unique_ptr<ASTNode>> nodes;
@@ -13,12 +16,14 @@ std::vector<std::unique_ptr<ASTNode>> Parser::parseProgram()
     return nodes;
 }
 
+// Checks if current token matches expected type and advances if so.
 bool Parser::match(TokenType expectedType)
 {
     if (currentToken.type == expectedType) { advance(); return true; }
     return false;
 }
 
+// Expects a specific token type, throws error if not found.
 Token Parser::expect(TokenType expectedType, const std::string& errorMessage)
 {
     Token prev = currentToken;
@@ -32,7 +37,7 @@ Token Parser::expect(TokenType expectedType, const std::string& errorMessage)
 
 void Parser::advance() { currentToken = lexer.getNextToken(); }
 
-
+// Dispatches to the appropriate statement parser based on current token.
 std::unique_ptr<ASTNode> Parser::parseStatement()
 {
     if (currentToken.type == TokenType::PRINT_MACRO)   return parsePrint(false);
@@ -281,9 +286,8 @@ std::unique_ptr<ASTNode> Parser::parseFactor()
         ": unexpected token '" + currentToken.lexeme + "'");
 }
 
-// ─────────────────────────────────────────────
 //  Blocks / control flow / functions
-// ─────────────────────────────────────────────
+
 std::unique_ptr<BlockNode> Parser::parseBlock()
 {
     expect(TokenType::LBRACE, "Expected '{'");

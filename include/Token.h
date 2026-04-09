@@ -3,6 +3,8 @@
 #include <string>
 #include <unordered_map>
 
+// Defines all possible token types for the lexer.
+// Each token represents a syntactic element in the source code.
 enum class TokenType
 {
     // general Types
@@ -119,8 +121,8 @@ static std::unordered_map<char, TokenType> delimiterTokens = {
     {')', TokenType::RPAREN},
     {'{', TokenType::LBRACE},
     {'}', TokenType::RBRACE},
-    {'[', TokenType::LBRACKET},   // NEW
-    {']', TokenType::RBRACKET},   // NEW
+    {'[', TokenType::LBRACKET},   
+    {']', TokenType::RBRACKET},   
     {';', TokenType::SEMICOLON},
     {',', TokenType::COMMA},
     {':', TokenType::COLON},

@@ -1,9 +1,12 @@
 #include "Lexer.h"
 
+// Lexer class: Converts source code string into a sequence of tokens.
+// Tracks position, line, and column for error reporting.
 Lexer::Lexer(const std::string &source)
     : m_source(source), m_pos(0), m_line(1), m_column(1)
 {}
 
+// Main tokenization function: Analyzes the next character and returns the appropriate token.
 Token Lexer::getNextToken()
 {
     skipWhitespace();
