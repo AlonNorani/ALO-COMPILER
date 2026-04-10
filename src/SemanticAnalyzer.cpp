@@ -14,6 +14,19 @@ void SemanticAnalyzer::visit(const FloatNode&)  { m_currentType = VarType::FLOAT
 void SemanticAnalyzer::visit(const BoolNode&)   { m_currentType = VarType::BOOL;   }
 void SemanticAnalyzer::visit(const StringNode&) { m_currentType = VarType::STRING; }
 
+std::string SemanticAnalyzer::varTypeToString(VarType vt)
+{   
+    switch (vt) {
+        case VarType::INT:    return "int";
+        case VarType::FLOAT:  return "float";
+        case VarType::STRING: return "string";
+        case VarType::BOOL:   return "bool";
+        case VarType::VOID:   return "void";
+        case VarType::ARRAY:  return "array";
+        default:              return "unknown";
+    }
+}
+
 void SemanticAnalyzer::visit(const CastNode& node)
 {
     node.expression->accept(*this);
@@ -25,7 +38,7 @@ void SemanticAnalyzer::visit(const CastNode& node)
     else if (targetType == VarType::INT && m_currentType == VarType::FLOAT)
         m_currentType = VarType::INT;
     else
-        throw std::runtime_error("Invalid cast from " + node.targetType);
+        throw std::runtime_error("Invalid cast from " + varTypeToString(m_currentType) + " to " + node.targetType);
 }
 
 void SemanticAnalyzer::visit(const LetNode& node)
@@ -426,6 +439,8 @@ VarType SemanticAnalyzer::stringToVarType(const std::string& s)
     if (s == "void")   return VarType::VOID;
     throw std::runtime_error("Unknown type: " + s);
 }
+
+
 
 std::optional<std::reference_wrapper<VariableInfo>>
 SemanticAnalyzer::lookupVariable(const std::string& name)

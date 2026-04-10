@@ -97,6 +97,7 @@ private:
                             VarType            elementType  = VarType::INT,
                             int                arraySize    = -1);
     VarType stringToVarType(const std::string& typeStr);
+    std::string varTypeToString(VarType vt);
     std::optional<std::reference_wrapper<VariableInfo>>
             lookupVariable(const std::string& name);
 };
