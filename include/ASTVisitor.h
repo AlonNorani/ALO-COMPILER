@@ -22,6 +22,7 @@ struct ArrayLiteralNode;
 struct ArrayAccessNode;
 struct ArrayAssignNode;
 struct ForNode;
+struct InputNode;
 
 struct ASTVisitor {
     virtual ~ASTVisitor() = default;
@@ -47,6 +48,8 @@ struct ASTVisitor {
     virtual void visit(const ArrayAccessNode&  node) = 0;
     virtual void visit(const ArrayAssignNode&  node) = 0;
     virtual void visit(const ForNode&         node) = 0;
+    virtual void visit(const InputNode& node) = 0;   
+
 };
 
 #endif

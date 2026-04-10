@@ -13,7 +13,6 @@
 // Each node represents a construct in the source code, used for semantic analysis and code generation.
 struct ASTVisitor;
 
-
 struct Parameter
 {
     std::string type;           
@@ -365,6 +364,8 @@ struct CallNode : ASTNode {
     int evaluate() const override { return 0; }
 };
 
+
+// I/O
 struct PrintNode : ASTNode {
     std::string formatString;
     std::vector<std::unique_ptr<ASTNode>> args;
@@ -381,6 +382,13 @@ struct PrintNode : ASTNode {
             std::cout << std::string(indent + 2, ' ') << "Arguments:\n";
             for (const auto& a : args) a->print(indent + 4);
         }
+    }
+};
+
+struct InputNode : ASTNode {
+    ACCEPT_VISITOR
+    void print(int indent = 0) const override {
+        std::cout << std::string(indent, ' ') << "Input!\n";
     }
 };
 

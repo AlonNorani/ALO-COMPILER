@@ -119,6 +119,10 @@ Token Lexer::lexIdentifierOrKeyword()
             advance();
             return Token{TokenType::PRINTLN_MACRO, "println!", startLine, startColumn};
         }
+        if (value == "input") {
+            advance();
+            return Token{TokenType::INPUT_MACRO, "input!", startLine, startColumn};
+        }
     }
 
     auto kwIt = keywords.find(value);

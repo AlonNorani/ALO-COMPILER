@@ -42,6 +42,7 @@ std::unique_ptr<ASTNode> Parser::parseStatement()
 {
     if (currentToken.type == TokenType::PRINT_MACRO)   return parsePrint(false);
     if (currentToken.type == TokenType::PRINTLN_MACRO) return parsePrint(true);
+    if (currentToken.type == TokenType::INPUT_MACRO)   return parseInput();
     if (currentToken.type == TokenType::FN)            return parseFunction();
     if (currentToken.type == TokenType::RETURN)        return parseReturnStatement();
     if (currentToken.type == TokenType::LET)           return parseLetStatement();
@@ -225,6 +226,12 @@ std::unique_ptr<ASTNode> Parser::parseUnary()
 
 std::unique_ptr<ASTNode> Parser::parseFactor()
 {
+    if (currentToken.type == TokenType::INPUT_MACRO) {
+        advance();
+        expect(TokenType::LPAREN, "Expected '('");
+        expect(TokenType::RPAREN, "Expected ')'");
+        return std::make_unique<InputNode>();
+    }
     if (currentToken.type == TokenType::NUMBER) {
         const std::string lexeme = currentToken.lexeme;
         if (lexeme.find('.') != std::string::npos) {
@@ -441,4 +448,12 @@ std::unique_ptr<ASTNode> Parser::parsePrint(bool newline)
     expect(TokenType::RPAREN,    "Expected ')'");
     expect(TokenType::SEMICOLON, "Expected ';'");
     return std::make_unique<PrintNode>(format, std::move(args), newline);
+}
+
+std::unique_ptr<ASTNode> Parser::parseInput() {
+    expect(TokenType::INPUT_MACRO, "Expected input macro");
+    expect(TokenType::LPAREN, "Expected '(' after 'input!'");
+    expect(TokenType::RPAREN, "Expected ')' after '('");
+    expect(TokenType::SEMICOLON, "Expected ';' after 'input!()'");
+    return std::make_unique<InputNode>();
 }

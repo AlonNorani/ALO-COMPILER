@@ -64,6 +64,9 @@ enum class TokenType
     // printing
     PRINT_MACRO,
     PRINTLN_MACRO,
+    // input
+    INPUT_MACRO,
+
     RANGE,
 };
 
@@ -91,7 +94,8 @@ static std::unordered_map<std::string, TokenType> keywords = {
     {"for",     TokenType::FOR},
     {"in",      TokenType::IN},
     {"print!",  TokenType::PRINT_MACRO},
-    {"println!",TokenType::PRINTLN_MACRO}
+    {"println!",TokenType::PRINTLN_MACRO},
+    {"input!",  TokenType::INPUT_MACRO},
 };
 
 static std::unordered_map<char, TokenType> singleCharOperatorTokens = {

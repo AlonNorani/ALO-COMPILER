@@ -72,14 +72,148 @@ void CodeGenVisitor::visit(const CastNode& node)
 {
     node.expression->accept(*this);
     auto& builder = m_cg.getBuilder();
+    auto& mod     = m_cg.getModule();
+    auto& ctx     = m_cg.getContext();
+
+    // Helper to declare a C standard function if not already in the module
+    auto declareFunc = [&](const std::string& name, llvm::FunctionType* ft) -> llvm::Function* {
+        llvm::Function* f = mod.getFunction(name);
+        if (!f) f = llvm::Function::Create(ft, llvm::Function::ExternalLinkage, name, mod);
+        return f;
+    };
+
     if (node.targetType == "float") {
         if (m_lastVarType == VarType::INT) {
-            m_lastValue = builder.CreateSIToFP(m_lastValue, builder.getDoubleTy(), "int2float");
+            m_lastValue   = builder.CreateSIToFP(m_lastValue, builder.getDoubleTy(), "int2float");
+            m_lastVarType = VarType::FLOAT;
+
+        } else if (m_lastVarType == VarType::STRING) {
+            // double strtod(const char* str, char** endptr)
+            llvm::Function* strtodFunc = declareFunc("strtod",
+                llvm::FunctionType::get(
+                    builder.getDoubleTy(),
+                    {builder.getPtrTy(), builder.getPtrTy()},
+                    false));
+
+            // char* fprintf / stderr — we'll use printf to stderr via fputs for simplicity
+            // Allocate an endptr on the stack
+            llvm::Function* currentFunc = builder.GetInsertBlock()->getParent();
+            llvm::AllocaInst* endPtr = m_cg.createEntryBlockAlloca(
+                currentFunc, "endptr", builder.getPtrTy());
+
+            llvm::Value* strVal = m_lastValue;
+            llvm::Value* result = builder.CreateCall(strtodFunc, {strVal, endPtr}, "str2float");
+
+            // Check: if *endptr == '\0' and endptr != str, conversion succeeded
+            llvm::Value* endPtrVal = builder.CreateLoad(builder.getPtrTy(), endPtr, "endptrval");
+
+            // *endptr should be '\0' (null terminator) for full conversion
+            llvm::Value* endChar = builder.CreateLoad(builder.getInt8Ty(), endPtrVal, "endchar");
+            llvm::Value* isNull  = builder.CreateICmpEQ(
+                endChar,
+                llvm::ConstantInt::get(builder.getInt8Ty(), 0),
+                "isnull");
+
+            // Also check endptr != str (to catch empty string "")
+            llvm::Value* notSame = builder.CreateICmpNE(endPtrVal, strVal, "notempty");
+            llvm::Value* valid   = builder.CreateAnd(isNull, notSame, "valid");
+
+            // Branch: valid → continue, invalid → print error and exit
+            llvm::BasicBlock* okBlock  = llvm::BasicBlock::Create(ctx, "cast_ok",      currentFunc);
+            llvm::BasicBlock* errBlock = llvm::BasicBlock::Create(ctx, "cast_err",     currentFunc);
+            llvm::BasicBlock* mergeBlock = llvm::BasicBlock::Create(ctx, "cast_merge", currentFunc);
+
+            builder.CreateCondBr(valid, okBlock, errBlock);
+
+            // Error block: print message and call exit(1)
+            builder.SetInsertPoint(errBlock);
+            llvm::Function* putsFunc = declareFunc("puts",
+                llvm::FunctionType::get(
+                    builder.getInt32Ty(), {builder.getPtrTy()}, false));
+            llvm::Function* exitFunc = declareFunc("exit",
+                llvm::FunctionType::get(
+                    builder.getVoidTy(), {builder.getInt32Ty()}, false));
+
+            llvm::Value* errMsg = builder.CreateGlobalString(
+                "Error: invalid cast from string to float", "cast_err_msg");
+            builder.CreateCall(putsFunc, {errMsg});
+            builder.CreateCall(exitFunc, {llvm::ConstantInt::get(builder.getInt32Ty(), 1)});
+            builder.CreateUnreachable();
+
+            // Ok block
+            builder.SetInsertPoint(okBlock);
+            builder.CreateBr(mergeBlock);
+
+            // Merge block: result is valid
+            builder.SetInsertPoint(mergeBlock);
+            m_lastValue   = result;
             m_lastVarType = VarType::FLOAT;
         }
+
     } else if (node.targetType == "int") {
         if (m_lastVarType == VarType::FLOAT) {
-            m_lastValue = builder.CreateFPToSI(m_lastValue, builder.getInt32Ty(), "float2int");
+            m_lastValue   = builder.CreateFPToSI(m_lastValue, builder.getInt32Ty(), "float2int");
+            m_lastVarType = VarType::INT;
+
+        } else if (m_lastVarType == VarType::STRING) {
+            // long strtol(const char* str, char** endptr, int base)
+            llvm::Function* strtolFunc = declareFunc("strtol",
+                llvm::FunctionType::get(
+                    builder.getInt64Ty(),
+                    {builder.getPtrTy(), builder.getPtrTy(), builder.getInt32Ty()},
+                    false));
+
+            llvm::Function* currentFunc = builder.GetInsertBlock()->getParent();
+            llvm::AllocaInst* endPtr = m_cg.createEntryBlockAlloca(
+                currentFunc, "endptr", builder.getPtrTy());
+
+            llvm::Value* strVal = m_lastValue;
+            llvm::Value* result64 = builder.CreateCall(
+                strtolFunc,
+                {strVal, endPtr, llvm::ConstantInt::get(builder.getInt32Ty(), 10)},
+                "str2long");
+
+            // Truncate long → int32
+            llvm::Value* result = builder.CreateTrunc(result64, builder.getInt32Ty(), "long2int");
+
+            // Validate: *endptr == '\0' and endptr != str
+            llvm::Value* endPtrVal = builder.CreateLoad(builder.getPtrTy(), endPtr, "endptrval");
+            llvm::Value* endChar   = builder.CreateLoad(builder.getInt8Ty(), endPtrVal, "endchar");
+            llvm::Value* isNull    = builder.CreateICmpEQ(
+                endChar,
+                llvm::ConstantInt::get(builder.getInt8Ty(), 0),
+                "isnull");
+            llvm::Value* notSame   = builder.CreateICmpNE(endPtrVal, strVal, "notempty");
+            llvm::Value* valid     = builder.CreateAnd(isNull, notSame, "valid");
+
+            llvm::BasicBlock* okBlock    = llvm::BasicBlock::Create(ctx, "cast_ok",    currentFunc);
+            llvm::BasicBlock* errBlock   = llvm::BasicBlock::Create(ctx, "cast_err",   currentFunc);
+            llvm::BasicBlock* mergeBlock = llvm::BasicBlock::Create(ctx, "cast_merge", currentFunc);
+
+            builder.CreateCondBr(valid, okBlock, errBlock);
+
+            // Error block
+            builder.SetInsertPoint(errBlock);
+            llvm::Function* putsFunc = declareFunc("puts",
+                llvm::FunctionType::get(
+                    builder.getInt32Ty(), {builder.getPtrTy()}, false));
+            llvm::Function* exitFunc = declareFunc("exit",
+                llvm::FunctionType::get(
+                    builder.getVoidTy(), {builder.getInt32Ty()}, false));
+
+            llvm::Value* errMsg = builder.CreateGlobalString(
+                "Error: invalid cast from string to int", "cast_err_msg");
+            builder.CreateCall(putsFunc, {errMsg});
+            builder.CreateCall(exitFunc, {llvm::ConstantInt::get(builder.getInt32Ty(), 1)});
+            builder.CreateUnreachable();
+
+            // Ok block
+            builder.SetInsertPoint(okBlock);
+            builder.CreateBr(mergeBlock);
+
+            // Merge
+            builder.SetInsertPoint(mergeBlock);
+            m_lastValue   = result;
             m_lastVarType = VarType::INT;
         }
     }
@@ -679,6 +813,69 @@ void CodeGenVisitor::visit(const PrintNode& node)
     builder.CreateCall(printfFunc, callArgs);
 }
 
+void CodeGenVisitor::visit(const InputNode& node) {
+    auto& ctx     = m_cg.getContext();
+    auto& builder = m_cg.getBuilder();
+    auto& mod     = m_cg.getModule();
+
+    // Declare fgets if not already present: char* fgets(char*, int, FILE*)
+    llvm::Function* fgetsFunc = mod.getFunction("fgets");
+    if (!fgetsFunc) {
+        llvm::Type* charPtrTy = builder.getPtrTy();
+        llvm::FunctionType* fgetsTy = llvm::FunctionType::get(
+            charPtrTy,
+            {charPtrTy, builder.getInt32Ty(), charPtrTy},
+            false);
+        fgetsFunc = llvm::Function::Create(
+            fgetsTy, llvm::Function::ExternalLinkage, "fgets", mod);
+    }
+
+    // Allocate a 256-byte buffer on the stack
+    llvm::Function* currentFunc = builder.GetInsertBlock()->getParent();
+    llvm::ArrayType* bufTy = llvm::ArrayType::get(builder.getInt8Ty(), 256);
+    llvm::AllocaInst* buf = m_cg.createEntryBlockAlloca(currentFunc, "input_buf", bufTy);
+
+    // Get pointer to the start of the buffer (GEP {0,0})
+    llvm::Value* zero = llvm::ConstantInt::get(builder.getInt32Ty(), 0);
+    llvm::Value* bufPtr = builder.CreateInBoundsGEP(bufTy, buf, {zero, zero}, "bufptr");
+
+    llvm::GlobalVariable* stdinGlobal = mod.getGlobalVariable("stdin");
+    if (!stdinGlobal) {
+        stdinGlobal = new llvm::GlobalVariable(
+            mod,
+            builder.getPtrTy(),
+            false,
+            llvm::GlobalValue::ExternalLinkage,
+            nullptr,
+            "stdin");
+    }
+    llvm::Value* stdinVal = builder.CreateLoad(builder.getPtrTy(), stdinGlobal, "stdin");
+
+    // Call fgets(bufPtr, 256, stdin)
+    llvm::Value* size256 = llvm::ConstantInt::get(builder.getInt32Ty(), 256);
+    builder.CreateCall(fgetsFunc, {bufPtr, size256, stdinVal});
+
+    // Strip the trailing newline: find '\n' and replace with '\0'
+    // Simplest: call strcspn then null-terminate
+    llvm::Function* strcspnFunc = mod.getFunction("strcspn");
+    if (!strcspnFunc) {
+        llvm::Type* charPtrTy = builder.getPtrTy();
+        llvm::FunctionType* ft = llvm::FunctionType::get(
+            builder.getInt64Ty(), {charPtrTy, charPtrTy}, false);
+        strcspnFunc = llvm::Function::Create(
+            ft, llvm::Function::ExternalLinkage, "strcspn", mod);
+    }
+
+    llvm::Value* newlineStr = builder.CreateGlobalString("\n", "nl");
+    llvm::Value* nlPos = builder.CreateCall(strcspnFunc, {bufPtr, newlineStr}, "nlpos");
+    llvm::Value* nlIdx = builder.CreateIntCast(nlPos, builder.getInt32Ty(), false);
+    llvm::Value* nlPtr = builder.CreateInBoundsGEP(
+        builder.getInt8Ty(), bufPtr, nlIdx, "nlptr");
+    builder.CreateStore(llvm::ConstantInt::get(builder.getInt8Ty(), 0), nlPtr);
+
+    m_lastValue   = bufPtr;
+    m_lastVarType = VarType::STRING;
+}
 
 llvm::Value* CodeGenVisitor::toBool(llvm::Value* val)
 {

@@ -37,6 +37,10 @@ void SemanticAnalyzer::visit(const CastNode& node)
         m_currentType = VarType::FLOAT;
     else if (targetType == VarType::INT && m_currentType == VarType::FLOAT)
         m_currentType = VarType::INT;
+    else if (targetType == VarType::INT && m_currentType == VarType::STRING)
+        m_currentType = VarType::INT;
+    else if (targetType == VarType::FLOAT && m_currentType == VarType::STRING)
+        m_currentType = VarType::FLOAT;
     else
         throw std::runtime_error("Invalid cast from " + varTypeToString(m_currentType) + " to " + node.targetType);
 }
@@ -415,6 +419,11 @@ void SemanticAnalyzer::visit(const PrintNode& node)
             throw std::runtime_error("Print only supports int, bool, float, or string");
     }
     m_currentType = VarType::VOID;
+}
+
+void SemanticAnalyzer::visit(const InputNode& node)
+{
+    m_currentType = VarType::STRING; // input is string by default, can be cast to other types by user
 }
 
 
