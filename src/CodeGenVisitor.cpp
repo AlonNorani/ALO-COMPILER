@@ -72,14 +72,148 @@ void CodeGenVisitor::visit(const CastNode& node)
 {
     node.expression->accept(*this);
     auto& builder = m_cg.getBuilder();
+    auto& mod     = m_cg.getModule();
+    auto& ctx     = m_cg.getContext();
+
+    // Helper to declare a C standard function if not already in the module
+    auto declareFunc = [&](const std::string& name, llvm::FunctionType* ft) -> llvm::Function* {
+        llvm::Function* f = mod.getFunction(name);
+        if (!f) f = llvm::Function::Create(ft, llvm::Function::ExternalLinkage, name, mod);
+        return f;
+    };
+
     if (node.targetType == "float") {
         if (m_lastVarType == VarType::INT) {
-            m_lastValue = builder.CreateSIToFP(m_lastValue, builder.getDoubleTy(), "int2float");
+            m_lastValue   = builder.CreateSIToFP(m_lastValue, builder.getDoubleTy(), "int2float");
+            m_lastVarType = VarType::FLOAT;
+
+        } else if (m_lastVarType == VarType::STRING) {
+            // double strtod(const char* str, char** endptr)
+            llvm::Function* strtodFunc = declareFunc("strtod",
+                llvm::FunctionType::get(
+                    builder.getDoubleTy(),
+                    {builder.getPtrTy(), builder.getPtrTy()},
+                    false));
+
+            // char* fprintf / stderr — we'll use printf to stderr via fputs for simplicity
+            // Allocate an endptr on the stack
+            llvm::Function* currentFunc = builder.GetInsertBlock()->getParent();
+            llvm::AllocaInst* endPtr = m_cg.createEntryBlockAlloca(
+                currentFunc, "endptr", builder.getPtrTy());
+
+            llvm::Value* strVal = m_lastValue;
+            llvm::Value* result = builder.CreateCall(strtodFunc, {strVal, endPtr}, "str2float");
+
+            // Check: if *endptr == '\0' and endptr != str, conversion succeeded
+            llvm::Value* endPtrVal = builder.CreateLoad(builder.getPtrTy(), endPtr, "endptrval");
+
+            // *endptr should be '\0' (null terminator) for full conversion
+            llvm::Value* endChar = builder.CreateLoad(builder.getInt8Ty(), endPtrVal, "endchar");
+            llvm::Value* isNull  = builder.CreateICmpEQ(
+                endChar,
+                llvm::ConstantInt::get(builder.getInt8Ty(), 0),
+                "isnull");
+
+            // Also check endptr != str (to catch empty string "")
+            llvm::Value* notSame = builder.CreateICmpNE(endPtrVal, strVal, "notempty");
+            llvm::Value* valid   = builder.CreateAnd(isNull, notSame, "valid");
+
+            // Branch: valid → continue, invalid → print error and exit
+            llvm::BasicBlock* okBlock  = llvm::BasicBlock::Create(ctx, "cast_ok",      currentFunc);
+            llvm::BasicBlock* errBlock = llvm::BasicBlock::Create(ctx, "cast_err",     currentFunc);
+            llvm::BasicBlock* mergeBlock = llvm::BasicBlock::Create(ctx, "cast_merge", currentFunc);
+
+            builder.CreateCondBr(valid, okBlock, errBlock);
+
+            // Error block: print message and call exit(1)
+            builder.SetInsertPoint(errBlock);
+            llvm::Function* putsFunc = declareFunc("puts",
+                llvm::FunctionType::get(
+                    builder.getInt32Ty(), {builder.getPtrTy()}, false));
+            llvm::Function* exitFunc = declareFunc("exit",
+                llvm::FunctionType::get(
+                    builder.getVoidTy(), {builder.getInt32Ty()}, false));
+
+            llvm::Value* errMsg = builder.CreateGlobalString(
+                "Error: invalid cast from string to float", "cast_err_msg");
+            builder.CreateCall(putsFunc, {errMsg});
+            builder.CreateCall(exitFunc, {llvm::ConstantInt::get(builder.getInt32Ty(), 1)});
+            builder.CreateUnreachable();
+
+            // Ok block
+            builder.SetInsertPoint(okBlock);
+            builder.CreateBr(mergeBlock);
+
+            // Merge block: result is valid
+            builder.SetInsertPoint(mergeBlock);
+            m_lastValue   = result;
             m_lastVarType = VarType::FLOAT;
         }
+
     } else if (node.targetType == "int") {
         if (m_lastVarType == VarType::FLOAT) {
-            m_lastValue = builder.CreateFPToSI(m_lastValue, builder.getInt32Ty(), "float2int");
+            m_lastValue   = builder.CreateFPToSI(m_lastValue, builder.getInt32Ty(), "float2int");
+            m_lastVarType = VarType::INT;
+
+        } else if (m_lastVarType == VarType::STRING) {
+            // long strtol(const char* str, char** endptr, int base)
+            llvm::Function* strtolFunc = declareFunc("strtol",
+                llvm::FunctionType::get(
+                    builder.getInt64Ty(),
+                    {builder.getPtrTy(), builder.getPtrTy(), builder.getInt32Ty()},
+                    false));
+
+            llvm::Function* currentFunc = builder.GetInsertBlock()->getParent();
+            llvm::AllocaInst* endPtr = m_cg.createEntryBlockAlloca(
+                currentFunc, "endptr", builder.getPtrTy());
+
+            llvm::Value* strVal = m_lastValue;
+            llvm::Value* result64 = builder.CreateCall(
+                strtolFunc,
+                {strVal, endPtr, llvm::ConstantInt::get(builder.getInt32Ty(), 10)},
+                "str2long");
+
+            // Truncate long → int32
+            llvm::Value* result = builder.CreateTrunc(result64, builder.getInt32Ty(), "long2int");
+
+            // Validate: *endptr == '\0' and endptr != str
+            llvm::Value* endPtrVal = builder.CreateLoad(builder.getPtrTy(), endPtr, "endptrval");
+            llvm::Value* endChar   = builder.CreateLoad(builder.getInt8Ty(), endPtrVal, "endchar");
+            llvm::Value* isNull    = builder.CreateICmpEQ(
+                endChar,
+                llvm::ConstantInt::get(builder.getInt8Ty(), 0),
+                "isnull");
+            llvm::Value* notSame   = builder.CreateICmpNE(endPtrVal, strVal, "notempty");
+            llvm::Value* valid     = builder.CreateAnd(isNull, notSame, "valid");
+
+            llvm::BasicBlock* okBlock    = llvm::BasicBlock::Create(ctx, "cast_ok",    currentFunc);
+            llvm::BasicBlock* errBlock   = llvm::BasicBlock::Create(ctx, "cast_err",   currentFunc);
+            llvm::BasicBlock* mergeBlock = llvm::BasicBlock::Create(ctx, "cast_merge", currentFunc);
+
+            builder.CreateCondBr(valid, okBlock, errBlock);
+
+            // Error block
+            builder.SetInsertPoint(errBlock);
+            llvm::Function* putsFunc = declareFunc("puts",
+                llvm::FunctionType::get(
+                    builder.getInt32Ty(), {builder.getPtrTy()}, false));
+            llvm::Function* exitFunc = declareFunc("exit",
+                llvm::FunctionType::get(
+                    builder.getVoidTy(), {builder.getInt32Ty()}, false));
+
+            llvm::Value* errMsg = builder.CreateGlobalString(
+                "Error: invalid cast from string to int", "cast_err_msg");
+            builder.CreateCall(putsFunc, {errMsg});
+            builder.CreateCall(exitFunc, {llvm::ConstantInt::get(builder.getInt32Ty(), 1)});
+            builder.CreateUnreachable();
+
+            // Ok block
+            builder.SetInsertPoint(okBlock);
+            builder.CreateBr(mergeBlock);
+
+            // Merge
+            builder.SetInsertPoint(mergeBlock);
+            m_lastValue   = result;
             m_lastVarType = VarType::INT;
         }
     }
@@ -160,7 +294,7 @@ void CodeGenVisitor::visit(const BinaryOpNode& node)
             m_lastValue = builder.CreateOr(toBool(L), toBool(R), "or");
             m_lastVarType = VarType::BOOL;
             break;
-        default: throw std::runtime_error("Unsupported binary operator in codegen");
+        default: throw std::runtime_error("Unsupported binary operator in codegen at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
     }
 }
 
@@ -177,10 +311,10 @@ void CodeGenVisitor::visit(const UnaryOpNode& node)
             break;
         case TokenType::NOT:
             if (m_lastVarType == VarType::FLOAT)
-                throw std::runtime_error("NOT operator does not support float");
+                throw std::runtime_error("NOT operator does not support float at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
             m_lastValue = builder.CreateNot(m_lastValue, "not");
             break;
-        default: throw std::runtime_error("Unsupported unary operator in codegen");
+        default: throw std::runtime_error("Unsupported unary operator in codegen at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
     }
 }
 
@@ -253,10 +387,10 @@ void CodeGenVisitor::visit(const ArrayAccessNode& node)
     auto& builder = m_cg.getBuilder();
 
     llvm::AllocaInst* alloc = m_cg.lookupVariable(node.name);
-    if (!alloc) throw std::runtime_error("Unknown array: " + node.name);
+    if (!alloc) throw std::runtime_error("Unknown array: " + node.name + " at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
 
     llvm::Type* elemTy = m_cg.getArrayElementType(node.name);
-    if (!elemTy) throw std::runtime_error("No element-type for array: " + node.name);
+    if (!elemTy) throw std::runtime_error("No element-type for array: " + node.name + " at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
 
     node.index->accept(*this);
     llvm::Value* idx = m_lastValue;
@@ -282,10 +416,10 @@ void CodeGenVisitor::visit(const ArrayAssignNode& node)
     auto& builder = m_cg.getBuilder();
 
     llvm::AllocaInst* alloc = m_cg.lookupVariable(node.name);
-    if (!alloc) throw std::runtime_error("Unknown array: " + node.name);
+    if (!alloc) throw std::runtime_error("Unknown array: " + node.name + " at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
 
     llvm::Type* elemTy = m_cg.getArrayElementType(node.name);
-    if (!elemTy) throw std::runtime_error("No element-type for array: " + node.name);
+    if (!elemTy) throw std::runtime_error("No element-type for array: " + node.name + " at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
 
     node.index->accept(*this);
     llvm::Value* idx = m_lastValue;
@@ -317,7 +451,7 @@ void CodeGenVisitor::visit(const AssignmentNode& node)
     auto& builder = m_cg.getBuilder();
     node.expression->accept(*this);
     llvm::AllocaInst* var = m_cg.lookupVariable(node.variableName);
-    if (!var) throw std::runtime_error("Unknown variable: " + node.variableName);
+    if (!var) throw std::runtime_error("Unknown variable: " + node.variableName + " at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
 
     llvm::Type* targetType = var->getAllocatedType();
     llvm::Value* value = m_lastValue;
@@ -448,7 +582,7 @@ void CodeGenVisitor::visit(const ForNode& node)
         }
 
         if (!arrayAlloc || !arrayElemTy)
-            throw std::runtime_error("Unsupported array iterable in for loop");
+            throw std::runtime_error("Unsupported array iterable in for loop at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
 
         llvm::Value* startPtr = nullptr;
         llvm::Value* lengthValue = nullptr;
@@ -461,9 +595,9 @@ void CodeGenVisitor::visit(const ForNode& node)
                                                 allocatedTy->getArrayNumElements());
         } else if (allocatedTy->isPointerTy()) {
             (void)arrayAlloc;
-            throw std::runtime_error("For loops over parameter arrays are not supported");
+            throw std::runtime_error("For loops over parameter arrays are not supported at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
         } else {
-            throw std::runtime_error("Unsupported array iterable in for loop");
+            throw std::runtime_error("Unsupported array iterable in for loop at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
         }
 
         llvm::AllocaInst* idxAlloc = m_cg.createEntryBlockAlloca(func, node.iteratorName + "_idx", builder.getInt32Ty());
@@ -519,7 +653,7 @@ void CodeGenVisitor::visit(const FunctionNode& node)
     else if (node.returnType == "float")  retType = builder.getDoubleTy();
     else if (node.returnType == "bool")   retType = builder.getInt1Ty();
     else if (node.returnType == "string") retType = llvm::PointerType::getUnqual(context);
-    else throw std::runtime_error("Unsupported return type: " + node.returnType);
+    else throw std::runtime_error("Unsupported return type: " + node.returnType + " at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
 
     // Parameter types
     std::vector<llvm::Type*> argTypes;
@@ -533,7 +667,7 @@ void CodeGenVisitor::visit(const FunctionNode& node)
             else if (p.type == "float")  argTypes.push_back(builder.getDoubleTy());
             else if (p.type == "bool")   argTypes.push_back(builder.getInt1Ty());
             else if (p.type == "string") argTypes.push_back(llvm::PointerType::getUnqual(context));
-            else throw std::runtime_error("Unsupported parameter type: " + p.type);
+            else throw std::runtime_error("Unsupported parameter type: " + p.type + " at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
         }
     }
 
@@ -589,7 +723,7 @@ void CodeGenVisitor::visit(const CallNode& node)
     auto& builder = m_cg.getBuilder();
     llvm::Function* function = m_cg.getModule().getFunction(node.functionName);
     if (!function)
-        throw std::runtime_error("Unknown function: " + node.functionName);
+        throw std::runtime_error("Unknown function: " + node.functionName + " at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
 
     std::vector<llvm::Value*> args;
     unsigned paramIdx = 0;
@@ -679,6 +813,69 @@ void CodeGenVisitor::visit(const PrintNode& node)
     builder.CreateCall(printfFunc, callArgs);
 }
 
+void CodeGenVisitor::visit(const InputNode& node) {
+    auto& ctx     = m_cg.getContext();
+    auto& builder = m_cg.getBuilder();
+    auto& mod     = m_cg.getModule();
+
+    // Declare fgets if not already present: char* fgets(char*, int, FILE*)
+    llvm::Function* fgetsFunc = mod.getFunction("fgets");
+    if (!fgetsFunc) {
+        llvm::Type* charPtrTy = builder.getPtrTy();
+        llvm::FunctionType* fgetsTy = llvm::FunctionType::get(
+            charPtrTy,
+            {charPtrTy, builder.getInt32Ty(), charPtrTy},
+            false);
+        fgetsFunc = llvm::Function::Create(
+            fgetsTy, llvm::Function::ExternalLinkage, "fgets", mod);
+    }
+
+    // Allocate a 256-byte buffer on the stack
+    llvm::Function* currentFunc = builder.GetInsertBlock()->getParent();
+    llvm::ArrayType* bufTy = llvm::ArrayType::get(builder.getInt8Ty(), 256);
+    llvm::AllocaInst* buf = m_cg.createEntryBlockAlloca(currentFunc, "input_buf", bufTy);
+
+    // Get pointer to the start of the buffer (GEP {0,0})
+    llvm::Value* zero = llvm::ConstantInt::get(builder.getInt32Ty(), 0);
+    llvm::Value* bufPtr = builder.CreateInBoundsGEP(bufTy, buf, {zero, zero}, "bufptr");
+
+    llvm::GlobalVariable* stdinGlobal = mod.getGlobalVariable("stdin");
+    if (!stdinGlobal) {
+        stdinGlobal = new llvm::GlobalVariable(
+            mod,
+            builder.getPtrTy(),
+            false,
+            llvm::GlobalValue::ExternalLinkage,
+            nullptr,
+            "stdin");
+    }
+    llvm::Value* stdinVal = builder.CreateLoad(builder.getPtrTy(), stdinGlobal, "stdin");
+
+    // Call fgets(bufPtr, 256, stdin)
+    llvm::Value* size256 = llvm::ConstantInt::get(builder.getInt32Ty(), 256);
+    builder.CreateCall(fgetsFunc, {bufPtr, size256, stdinVal});
+
+    // Strip the trailing newline: find '\n' and replace with '\0'
+    // Simplest: call strcspn then null-terminate
+    llvm::Function* strcspnFunc = mod.getFunction("strcspn");
+    if (!strcspnFunc) {
+        llvm::Type* charPtrTy = builder.getPtrTy();
+        llvm::FunctionType* ft = llvm::FunctionType::get(
+            builder.getInt64Ty(), {charPtrTy, charPtrTy}, false);
+        strcspnFunc = llvm::Function::Create(
+            ft, llvm::Function::ExternalLinkage, "strcspn", mod);
+    }
+
+    llvm::Value* newlineStr = builder.CreateGlobalString("\n", "nl");
+    llvm::Value* nlPos = builder.CreateCall(strcspnFunc, {bufPtr, newlineStr}, "nlpos");
+    llvm::Value* nlIdx = builder.CreateIntCast(nlPos, builder.getInt32Ty(), false);
+    llvm::Value* nlPtr = builder.CreateInBoundsGEP(
+        builder.getInt8Ty(), bufPtr, nlIdx, "nlptr");
+    builder.CreateStore(llvm::ConstantInt::get(builder.getInt8Ty(), 0), nlPtr);
+
+    m_lastValue   = bufPtr;
+    m_lastVarType = VarType::STRING;
+}
 
 llvm::Value* CodeGenVisitor::toBool(llvm::Value* val)
 {

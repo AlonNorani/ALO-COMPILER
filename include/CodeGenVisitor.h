@@ -38,6 +38,8 @@ public:
     void visit(const ArrayAccessNode&  node) override;
     void visit(const ArrayAssignNode&  node) override;
     void visit(const ForNode&          node) override;
+    void visit(const InputNode&        node) override;
+
 
 private:
     CodeGenerator& m_cg;

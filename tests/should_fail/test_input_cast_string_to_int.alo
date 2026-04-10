@@ -1,0 +1,5 @@
+fn main() -> void {
+    let a = input!();
+    let b = 3 + a;
+    println!("{}", a);
+}

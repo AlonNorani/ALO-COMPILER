@@ -42,6 +42,7 @@ std::unique_ptr<ASTNode> Parser::parseStatement()
 {
     if (currentToken.type == TokenType::PRINT_MACRO)   return parsePrint(false);
     if (currentToken.type == TokenType::PRINTLN_MACRO) return parsePrint(true);
+    if (currentToken.type == TokenType::INPUT_MACRO)   return parseInput();
     if (currentToken.type == TokenType::FN)            return parseFunction();
     if (currentToken.type == TokenType::RETURN)        return parseReturnStatement();
     if (currentToken.type == TokenType::LET)           return parseLetStatement();
@@ -67,7 +68,7 @@ std::unique_ptr<ASTNode> Parser::parseStatement()
 
 std::unique_ptr<ASTNode> Parser::parseLetStatement()
 {
-    advance(); // consume 'let'
+    int line = currentToken.line; int col = currentToken.column; advance(); // consume 'let'
 
     bool isMutable = false;
     if (currentToken.type == TokenType::MUT) { isMutable = true; advance(); }
@@ -78,7 +79,7 @@ std::unique_ptr<ASTNode> Parser::parseLetStatement()
     std::string varName = currentToken.lexeme;
     advance();
 
-    auto node = std::make_unique<LetNode>(varName, nullptr, isMutable);
+    auto node = std::make_unique<LetNode>(varName, nullptr, isMutable, line, col);
 
     if (currentToken.type == TokenType::COLON) {
         advance();
@@ -114,20 +115,20 @@ std::unique_ptr<ASTNode> Parser::parseLetStatement()
 
 std::unique_ptr<ASTNode> Parser::parseArrayLiteral()
 {
-    expect(TokenType::LBRACKET, "Expected '['");
+    int line = currentToken.line; int col = currentToken.column; expect(TokenType::LBRACKET, "Expected '['");
     std::vector<std::unique_ptr<ASTNode>> elements;
     if (currentToken.type != TokenType::RBRACKET) {
         do { elements.push_back(parseExpression()); }
         while (match(TokenType::COMMA));
     }
     expect(TokenType::RBRACKET, "Expected ']'");
-    return std::make_unique<ArrayLiteralNode>(std::move(elements));
+    return std::make_unique<ArrayLiteralNode>(std::move(elements), line, col);
 }
 
 
 std::unique_ptr<ASTNode> Parser::parseArrayAssignment()
 {
-    std::string name = currentToken.lexeme;
+    std::string name = currentToken.lexeme; int line = currentToken.line; int col = currentToken.column;
     advance();
     expect(TokenType::LBRACKET, "Expected '['");
     auto index = parseExpression();
@@ -137,10 +138,10 @@ std::unique_ptr<ASTNode> Parser::parseArrayAssignment()
         advance();
         auto val = parseExpression();
         expect(TokenType::SEMICOLON, "Expected ';' after array assignment");
-        return std::make_unique<ArrayAssignNode>(name, std::move(index), std::move(val));
+        return std::make_unique<ArrayAssignNode>(name, std::move(index), std::move(val), line, col);
     }
 
-    auto access = std::make_unique<ArrayAccessNode>(name, std::move(index));
+    auto access = std::make_unique<ArrayAccessNode>(name, std::move(index), line, col);
     expect(TokenType::SEMICOLON, "Expected ';' after expression");
     return access;
 }
@@ -148,12 +149,12 @@ std::unique_ptr<ASTNode> Parser::parseArrayAssignment()
 
 std::unique_ptr<ASTNode> Parser::parseAssignment()
 {
-    std::string varName = currentToken.lexeme;
+    std::string varName = currentToken.lexeme; int line = currentToken.line; int col = currentToken.column;
     advance();
     expect(TokenType::EQUAL, "Expected '='");
     auto expr = parseExpression();
     expect(TokenType::SEMICOLON, "Expected ';'");
-    return std::make_unique<AssignmentNode>(varName, std::move(expr));
+    return std::make_unique<AssignmentNode>(varName, std::move(expr), line, col);
 }
 
 
@@ -163,8 +164,8 @@ std::unique_ptr<ASTNode> Parser::parseLogicalOr()
 {
     auto left = parseLogicalAnd();
     while (currentToken.type == TokenType::LOGICAL_OR) {
-        TokenType op = currentToken.type; advance();
-        left = std::make_unique<BinaryOpNode>(std::move(left), parseLogicalAnd(), op);
+        TokenType op = currentToken.type; int line = currentToken.line; int col = currentToken.column; advance();
+        left = std::make_unique<BinaryOpNode>(std::move(left), parseLogicalAnd(), op, line, col);
     }
     return left;
 }
@@ -173,8 +174,8 @@ std::unique_ptr<ASTNode> Parser::parseLogicalAnd()
 {
     auto left = parseComparison();
     while (currentToken.type == TokenType::LOGICAL_AND) {
-        TokenType op = currentToken.type; advance();
-        left = std::make_unique<BinaryOpNode>(std::move(left), parseComparison(), op);
+        TokenType op = currentToken.type; int line = currentToken.line; int col = currentToken.column; advance();
+        left = std::make_unique<BinaryOpNode>(std::move(left), parseComparison(), op, line, col);
     }
     return left;
 }
@@ -188,8 +189,8 @@ std::unique_ptr<ASTNode> Parser::parseComparison()
            currentToken.type == TokenType::NOT_EQUAL   ||
            currentToken.type == TokenType::LESS_EQUAL  ||
            currentToken.type == TokenType::GREATER_EQUAL) {
-        TokenType op = currentToken.type; advance();
-        left = std::make_unique<BinaryOpNode>(std::move(left), parseAdditive(), op);
+        TokenType op = currentToken.type; int line = currentToken.line; int col = currentToken.column; advance();
+        left = std::make_unique<BinaryOpNode>(std::move(left), parseAdditive(), op, line, col);
     }
     return left;
 }
@@ -198,8 +199,8 @@ std::unique_ptr<ASTNode> Parser::parseAdditive()
 {
     auto left = parseTerm();
     while (currentToken.type == TokenType::PLUS || currentToken.type == TokenType::MINUS) {
-        TokenType op = currentToken.type; advance();
-        left = std::make_unique<BinaryOpNode>(std::move(left), parseTerm(), op);
+        TokenType op = currentToken.type; int line = currentToken.line; int col = currentToken.column; advance();
+        left = std::make_unique<BinaryOpNode>(std::move(left), parseTerm(), op, line, col);
     }
     return left;
 }
@@ -208,8 +209,8 @@ std::unique_ptr<ASTNode> Parser::parseTerm()
 {
     auto left = parseUnary();
     while (currentToken.type == TokenType::STAR || currentToken.type == TokenType::SLASH) {
-        TokenType op = currentToken.type; advance();
-        left = std::make_unique<BinaryOpNode>(std::move(left), parseUnary(), op);
+        TokenType op = currentToken.type; int line = currentToken.line; int col = currentToken.column; advance();
+        left = std::make_unique<BinaryOpNode>(std::move(left), parseUnary(), op, line, col);
     }
     return left;
 }
@@ -218,30 +219,36 @@ std::unique_ptr<ASTNode> Parser::parseUnary()
 {
     if (currentToken.type == TokenType::NOT || currentToken.type == TokenType::MINUS) {
         TokenType op = currentToken.type; advance();
-        return std::make_unique<UnaryOpNode>(op, parseUnary());
+        return std::make_unique<UnaryOpNode>(op, parseUnary(), currentToken.line, currentToken.column);
     }
     return parseFactor();
 }
 
 std::unique_ptr<ASTNode> Parser::parseFactor()
 {
+    if (currentToken.type == TokenType::INPUT_MACRO) {
+        int line = currentToken.line; int col = currentToken.column; advance();
+        expect(TokenType::LPAREN, "Expected '('");
+        expect(TokenType::RPAREN, "Expected ')'");
+        return std::make_unique<InputNode>(line, col);
+    }
     if (currentToken.type == TokenType::NUMBER) {
-        const std::string lexeme = currentToken.lexeme;
+        const std::string lexeme = currentToken.lexeme; int line = currentToken.line; int col = currentToken.column;
         if (lexeme.find('.') != std::string::npos) {
             double val = std::stod(lexeme);
             advance();
-            return std::make_unique<FloatNode>(val);
+            return std::make_unique<FloatNode>(val, line, col);
         }
         int val = std::stoi(lexeme);
         advance();
-        return std::make_unique<NumberNode>(val);
+        return std::make_unique<NumberNode>(val, line, col);
     }
     if (currentToken.type == TokenType::STRING) {
-        std::string val = currentToken.lexeme; advance();
-        return std::make_unique<StringNode>(val);
+        std::string val = currentToken.lexeme; int line = currentToken.line; int col = currentToken.column; advance();
+        return std::make_unique<StringNode>(val, line, col);
     }
     if (currentToken.type == TokenType::IDENTIFIER) {
-        std::string name = currentToken.lexeme; advance();
+        std::string name = currentToken.lexeme; int line = currentToken.line; int col = currentToken.column; advance();
         if (currentToken.type == TokenType::LPAREN) {
             advance();
             std::vector<std::unique_ptr<ASTNode>> args;
@@ -250,18 +257,18 @@ std::unique_ptr<ASTNode> Parser::parseFactor()
                 while (match(TokenType::COMMA));
             }
             expect(TokenType::RPAREN, "Expected ')'");
-            return std::make_unique<CallNode>(name, std::move(args));
+            return std::make_unique<CallNode>(name, std::move(args), line, col);
         }
         if (currentToken.type == TokenType::LBRACKET) {
             advance();
             auto index = parseExpression();
             expect(TokenType::RBRACKET, "Expected ']'");
-            return std::make_unique<ArrayAccessNode>(name, std::move(index));
+            return std::make_unique<ArrayAccessNode>(name, std::move(index), line, col);
         }
-        return std::make_unique<VariableNode>(name);
+        return std::make_unique<VariableNode>(name, line, col);
     }
     if (currentToken.type == TokenType::LPAREN) {
-        advance();
+        int line = currentToken.line; int col = currentToken.column; advance();
         if (currentToken.type == TokenType::INT || currentToken.type == TokenType::FLOAT ||
             currentToken.type == TokenType::BOOL || currentToken.type == TokenType::STRING_TYPE) {
             std::string castType = currentToken.lexeme;
@@ -269,7 +276,7 @@ std::unique_ptr<ASTNode> Parser::parseFactor()
             if (currentToken.type == TokenType::RPAREN) {
                 advance();
                 auto expr = parseFactor();
-                return std::make_unique<CastNode>(castType, std::move(expr));
+                return std::make_unique<CastNode>(castType, std::move(expr), line, col);
             }
             throw std::runtime_error("Invalid cast syntax");
         }
@@ -278,8 +285,8 @@ std::unique_ptr<ASTNode> Parser::parseFactor()
         return expr;
     }
     if (currentToken.type == TokenType::LBRACKET) return parseArrayLiteral();
-    if (currentToken.type == TokenType::TRUE)  { advance(); return std::make_unique<BoolNode>(true);  }
-    if (currentToken.type == TokenType::FALSE) { advance(); return std::make_unique<BoolNode>(false); }
+    if (currentToken.type == TokenType::TRUE)  { int line = currentToken.line; int col = currentToken.column; advance(); return std::make_unique<BoolNode>(true, line, col);  }
+    if (currentToken.type == TokenType::FALSE) { int line = currentToken.line; int col = currentToken.column; advance(); return std::make_unique<BoolNode>(false, line, col); }
 
     throw std::runtime_error(
         "Syntax Error at line " + std::to_string(currentToken.line) +
@@ -290,18 +297,18 @@ std::unique_ptr<ASTNode> Parser::parseFactor()
 
 std::unique_ptr<BlockNode> Parser::parseBlock()
 {
-    expect(TokenType::LBRACE, "Expected '{'");
+    int line = currentToken.line; int col = currentToken.column; expect(TokenType::LBRACE, "Expected '{'");
     std::vector<std::unique_ptr<ASTNode>> stmts;
     while (currentToken.type != TokenType::RBRACE &&
            currentToken.type != TokenType::EOF_TOKEN)
         stmts.push_back(parseStatement());
     expect(TokenType::RBRACE, "Expected '}'");
-    return std::make_unique<BlockNode>(std::move(stmts));
+    return std::make_unique<BlockNode>(std::move(stmts), line, col);
 }
 
 std::unique_ptr<IfNode> Parser::parseIfStatement()
 {
-    expect(TokenType::IF,     "Expected 'if'");
+    int line = currentToken.line; int col = currentToken.column; expect(TokenType::IF,     "Expected 'if'");
     expect(TokenType::LPAREN, "Expected '('");
     auto cond = parseExpression();
     expect(TokenType::RPAREN, "Expected ')'");
@@ -313,26 +320,26 @@ std::unique_ptr<IfNode> Parser::parseIfStatement()
             auto nested = parseIfStatement();
             std::vector<std::unique_ptr<ASTNode>> stmts;
             stmts.push_back(std::move(nested));
-            elseBranch = std::make_unique<BlockNode>(std::move(stmts));
+            elseBranch = std::make_unique<BlockNode>(std::move(stmts), currentToken.line, currentToken.column); // approximate position
         } else {
             elseBranch = parseBlock();
         }
     }
-    return std::make_unique<IfNode>(std::move(cond), std::move(thenBranch), std::move(elseBranch));
+    return std::make_unique<IfNode>(std::move(cond), std::move(thenBranch), std::move(elseBranch), line, col);
 }
 
 std::unique_ptr<WhileNode> Parser::parseWhileStatement()
 {
-    expect(TokenType::WHILE,  "Expected 'while'");
+    int line = currentToken.line; int col = currentToken.column; expect(TokenType::WHILE,  "Expected 'while'");
     expect(TokenType::LPAREN, "Expected '('");
     auto cond = parseExpression();
     expect(TokenType::RPAREN, "Expected ')'");
-    return std::make_unique<WhileNode>(std::move(cond), parseBlock());
+    return std::make_unique<WhileNode>(std::move(cond), parseBlock(), line, col);
 }
 
 std::unique_ptr<ASTNode> Parser::parseForStatement()
 {
-    expect(TokenType::FOR, "Expected 'for'");
+    int line = currentToken.line; int col = currentToken.column; expect(TokenType::FOR, "Expected 'for'");
     if (currentToken.type != TokenType::IDENTIFIER)
         throw std::runtime_error("Expected iterator name after 'for'");
 
@@ -347,12 +354,12 @@ std::unique_ptr<ASTNode> Parser::parseForStatement()
         endExpr = parseExpression();
     }
 
-    return std::make_unique<ForNode>(iteratorName, std::move(iterable), std::move(endExpr), parseBlock());
+    return std::make_unique<ForNode>(iteratorName, std::move(iterable), std::move(endExpr), parseBlock(), line, col);
 }
 
 std::unique_ptr<FunctionNode> Parser::parseFunction()
 {
-    expect(TokenType::FN, "Expected 'fn'");
+    int line = currentToken.line; int col = currentToken.column; expect(TokenType::FN, "Expected 'fn'");
     if (currentToken.type != TokenType::IDENTIFIER)
         throw std::runtime_error("Expected function name");
     std::string name = currentToken.lexeme; advance();
@@ -361,7 +368,7 @@ std::unique_ptr<FunctionNode> Parser::parseFunction()
     expect(TokenType::RPAREN, "Expected ')'");
     expect(TokenType::ARROW,  "Expected '->'");
     std::string retType = parseType();
-    return std::make_unique<FunctionNode>(name, std::move(params), retType, parseBlock());
+    return std::make_unique<FunctionNode>(name, std::move(params), retType, parseBlock(), line, col);
 }
 
 
@@ -410,15 +417,15 @@ std::string Parser::parseType()
 
 std::unique_ptr<ASTNode> Parser::parseReturnStatement()
 {
-    expect(TokenType::RETURN, "Expected 'return'");
+    int line = currentToken.line; int col = currentToken.column; expect(TokenType::RETURN, "Expected 'return'");
     auto expr = parseExpression();
     expect(TokenType::SEMICOLON, "Expected ';'");
-    return std::make_unique<ReturnNode>(std::move(expr));
+    return std::make_unique<ReturnNode>(std::move(expr), line, col);
 }
 
 std::unique_ptr<ASTNode> Parser::parsePrint(bool newline)
 {
-    expect(newline ? TokenType::PRINTLN_MACRO : TokenType::PRINT_MACRO, "Expected print macro");
+    int line = currentToken.line; int col = currentToken.column; expect(newline ? TokenType::PRINTLN_MACRO : TokenType::PRINT_MACRO, "Expected print macro");
     expect(TokenType::LPAREN, "Expected '('");
 
     std::string format;
@@ -440,5 +447,13 @@ std::unique_ptr<ASTNode> Parser::parsePrint(bool newline)
 
     expect(TokenType::RPAREN,    "Expected ')'");
     expect(TokenType::SEMICOLON, "Expected ';'");
-    return std::make_unique<PrintNode>(format, std::move(args), newline);
+    return std::make_unique<PrintNode>(format, std::move(args), newline, line, col);
+}
+
+std::unique_ptr<ASTNode> Parser::parseInput() {
+    int line = currentToken.line; int col = currentToken.column; expect(TokenType::INPUT_MACRO, "Expected input macro");
+    expect(TokenType::LPAREN, "Expected '(' after 'input!'");
+    expect(TokenType::RPAREN, "Expected ')' after '('");
+    expect(TokenType::SEMICOLON, "Expected ';' after 'input!()'");
+    return std::make_unique<InputNode>(line, col);
 }

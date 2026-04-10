@@ -1,0 +1,8 @@
+fn println!() -> void
+{
+    print!("should not work");
+}
+
+fn main() -> void {
+    println!();
+}

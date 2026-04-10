@@ -34,6 +34,7 @@ private:
     std::unique_ptr<FunctionNode> parseFunction();
     std::unique_ptr<ASTNode>      parseReturnStatement();
     std::unique_ptr<ASTNode>      parsePrint(bool newline);
+    std::unique_ptr<ASTNode>      parseInput();
 
     // Expressions
     std::unique_ptr<ASTNode> parseExpression();

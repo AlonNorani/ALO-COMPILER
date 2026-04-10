@@ -1,0 +1,4 @@
+fn main() -> void {
+    let mut a = (float) input!();
+    println!("{}", a);
+}
