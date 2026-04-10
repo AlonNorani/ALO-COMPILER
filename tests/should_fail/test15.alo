@@ -1,4 +1,4 @@
 fn main() -> void {
     let x = 5;
-    let y = x + unknown;
+    let y = x + println!;
 }

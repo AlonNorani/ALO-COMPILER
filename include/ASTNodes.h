@@ -41,6 +41,8 @@ inline std::string tokenTypeToString(TokenType type) {
 }
 
 struct ASTNode {
+    int line, column;
+    ASTNode(int l = 0, int c = 0) : line(l), column(c) {}
     virtual ~ASTNode() = default;
     virtual void accept(ASTVisitor& visitor) const = 0;
     virtual int  evaluate() const {
@@ -56,7 +58,7 @@ struct ASTNode {
 
 struct NumberNode : ASTNode {
     int value;
-    NumberNode(int val) : value(val) {}
+    NumberNode(int val, int l, int c) : ASTNode(l, c), value(val) {}
     ACCEPT_VISITOR
     int  evaluate() const override { return value; }
     void print(int indent = 0) const override {
@@ -66,7 +68,7 @@ struct NumberNode : ASTNode {
 
 struct BoolNode : ASTNode {
     bool value;
-    BoolNode(bool val) : value(val) {}
+    BoolNode(bool val, int l, int c) : ASTNode(l, c), value(val) {}
     ACCEPT_VISITOR
     int  evaluate() const override { return value ? 1 : 0; }
     void print(int indent = 0) const override {
@@ -77,7 +79,7 @@ struct BoolNode : ASTNode {
 
 struct FloatNode : ASTNode {
     double value;
-    FloatNode(double val) : value(val) {}
+    FloatNode(double val, int l, int c) : ASTNode(l, c), value(val) {}
     ACCEPT_VISITOR
     int  evaluate() const override { return static_cast<int>(value); }
     void print(int indent = 0) const override {
@@ -87,7 +89,7 @@ struct FloatNode : ASTNode {
 
 struct StringNode : ASTNode {
     std::string value;
-    StringNode(std::string val) : value(std::move(val)) {}
+    StringNode(std::string val, int l, int c) : ASTNode(l, c), value(std::move(val)) {}
     ACCEPT_VISITOR
     void print(int indent = 0) const override {
         std::cout << std::string(indent, ' ')
@@ -98,8 +100,8 @@ struct StringNode : ASTNode {
 struct CastNode : ASTNode {
     std::string targetType;
     std::unique_ptr<ASTNode> expression;
-    CastNode(std::string type, std::unique_ptr<ASTNode> expr)
-        : targetType(std::move(type)), expression(std::move(expr)) {}
+    CastNode(std::string type, std::unique_ptr<ASTNode> expr, int l, int c)
+        : ASTNode(l, c), targetType(std::move(type)), expression(std::move(expr)) {}
     ACCEPT_VISITOR
     void print(int indent = 0) const override {
         std::cout << std::string(indent, ' ') << "Cast: (" << targetType << ")\n";
@@ -115,8 +117,8 @@ struct BinaryOpNode : ASTNode {
     TokenType op;
     BinaryOpNode(std::unique_ptr<ASTNode> l,
                  std::unique_ptr<ASTNode> r,
-                 TokenType o)
-        : left(std::move(l)), right(std::move(r)), op(o) {}
+                 TokenType o, int lline, int c)
+        : ASTNode(lline, c), left(std::move(l)), right(std::move(r)), op(o) {}
     ACCEPT_VISITOR
     int evaluate() const override {
         int l = left->evaluate(), r = right->evaluate();
@@ -147,8 +149,8 @@ struct BinaryOpNode : ASTNode {
 struct UnaryOpNode : ASTNode {
     TokenType op;
     std::unique_ptr<ASTNode> operand;
-    UnaryOpNode(TokenType op, std::unique_ptr<ASTNode> operand)
-        : op(op), operand(std::move(operand)) {}
+    UnaryOpNode(TokenType o, std::unique_ptr<ASTNode> operand, int l, int c)
+        : ASTNode(l, c), op(o), operand(std::move(operand)) {}
     ACCEPT_VISITOR
     int evaluate() const override {
         int val = operand->evaluate();
@@ -169,7 +171,7 @@ struct UnaryOpNode : ASTNode {
 
 struct VariableNode : ASTNode {
     std::string name;
-    VariableNode(const std::string& n) : name(n) {}
+    VariableNode(const std::string& n, int l, int c) : ASTNode(l, c), name(n) {}
     ACCEPT_VISITOR
     void print(int indent = 0) const override {
         std::cout << std::string(indent, ' ') << "Variable: " << name << "\n";
@@ -188,8 +190,10 @@ struct LetNode : ASTNode {
 
     LetNode(const std::string& var,
             std::unique_ptr<ASTNode> val,
-            bool mutableFlag = false)
-        : variableName(var), value(std::move(val)), isMutable(mutableFlag) {}
+            bool mutableFlag = false,
+            int l = 0,
+            int c = 0)
+        : ASTNode(l, c), variableName(var), value(std::move(val)), isMutable(mutableFlag) {}
 
     ACCEPT_VISITOR
 
@@ -215,8 +219,8 @@ struct LetNode : ASTNode {
 struct AssignmentNode : ASTNode {
     std::string              variableName;
     std::unique_ptr<ASTNode> expression;
-    AssignmentNode(const std::string& var, std::unique_ptr<ASTNode> expr)
-        : variableName(var), expression(std::move(expr)) {}
+    AssignmentNode(const std::string& var, std::unique_ptr<ASTNode> expr, int l, int c)
+        : ASTNode(l, c), variableName(var), expression(std::move(expr)) {}
     ACCEPT_VISITOR
     void print(int indent = 0) const override {
         std::cout << std::string(indent, ' ')
@@ -227,8 +231,8 @@ struct AssignmentNode : ASTNode {
 
 struct BlockNode : ASTNode {
     std::vector<std::unique_ptr<ASTNode>> statements;
-    BlockNode(std::vector<std::unique_ptr<ASTNode>> stmts)
-        : statements(std::move(stmts)) {}
+    BlockNode(std::vector<std::unique_ptr<ASTNode>> stmts, int l, int c)
+        : ASTNode(l, c), statements(std::move(stmts)) {}
     ACCEPT_VISITOR
     void print(int indent = 0) const override {
         std::cout << std::string(indent, ' ') << "Block:\n";
@@ -242,8 +246,10 @@ struct IfNode : ASTNode {
     std::unique_ptr<BlockNode> elseBranch;
     IfNode(std::unique_ptr<ASTNode>   cond,
            std::unique_ptr<BlockNode> thenB,
-           std::unique_ptr<BlockNode> elseB = nullptr)
-        : condition(std::move(cond)),
+           std::unique_ptr<BlockNode> elseB = nullptr,
+           int l = 0,
+           int c = 0)
+        : ASTNode(l, c), condition(std::move(cond)),
           thenBranch(std::move(thenB)),
           elseBranch(std::move(elseB)) {}
     ACCEPT_VISITOR
@@ -263,8 +269,8 @@ struct IfNode : ASTNode {
 struct WhileNode : ASTNode {
     std::unique_ptr<ASTNode>   condition;
     std::unique_ptr<BlockNode> body;
-    WhileNode(std::unique_ptr<ASTNode> cond, std::unique_ptr<BlockNode> b)
-        : condition(std::move(cond)), body(std::move(b)) {}
+    WhileNode(std::unique_ptr<ASTNode> cond, std::unique_ptr<BlockNode> b, int l, int c)
+        : ASTNode(l, c), condition(std::move(cond)), body(std::move(b)) {}
     ACCEPT_VISITOR
     void print(int indent = 0) const override {
         std::cout << std::string(indent, ' ') << "While:\n";
@@ -284,8 +290,10 @@ struct ForNode : ASTNode {
     ForNode(const std::string& name,
             std::unique_ptr<ASTNode> iterableExpr,
             std::unique_ptr<ASTNode> endExpression,
-            std::unique_ptr<BlockNode> b)
-        : iteratorName(name),
+            std::unique_ptr<BlockNode> b,
+            int l,
+            int c)
+        : ASTNode(l, c), iteratorName(name),
           iterable(std::move(iterableExpr)),
           endExpr(std::move(endExpression)),
           body(std::move(b)) {}
@@ -315,8 +323,10 @@ struct FunctionNode : ASTNode {
     FunctionNode(const std::string& n,
                  std::vector<Parameter> params,
                  const std::string& retType,
-                 std::unique_ptr<BlockNode> b)
-        : name(n), parameters(std::move(params)), returnType(retType), body(std::move(b)) {}
+                 std::unique_ptr<BlockNode> b,
+                 int l,
+                 int c)
+        : ASTNode(l, c), name(n), parameters(std::move(params)), returnType(retType), body(std::move(b)) {}
     ACCEPT_VISITOR
     void print(int indent = 0) const override {
         std::cout << std::string(indent, ' ') << "Function: " << name << "\n";
@@ -339,7 +349,7 @@ struct FunctionNode : ASTNode {
 
 struct ReturnNode : ASTNode {
     std::unique_ptr<ASTNode> expression;
-    ReturnNode(std::unique_ptr<ASTNode> expr) : expression(std::move(expr)) {}
+    ReturnNode(std::unique_ptr<ASTNode> expr, int l, int c) : ASTNode(l, c), expression(std::move(expr)) {}
     ACCEPT_VISITOR
     void print(int indent = 0) const override {
         std::cout << std::string(indent, ' ') << "Return:\n";
@@ -351,8 +361,8 @@ struct ReturnNode : ASTNode {
 struct CallNode : ASTNode {
     std::string functionName;
     std::vector<std::unique_ptr<ASTNode>> arguments;
-    CallNode(const std::string& name, std::vector<std::unique_ptr<ASTNode>> args)
-        : functionName(name), arguments(std::move(args)) {}
+    CallNode(const std::string& name, std::vector<std::unique_ptr<ASTNode>> args, int l, int c)
+        : ASTNode(l, c), functionName(name), arguments(std::move(args)) {}
     ACCEPT_VISITOR
     void print(int indent = 0) const override {
         std::cout << std::string(indent, ' ') << "Call: " << functionName << "\n";
@@ -372,8 +382,10 @@ struct PrintNode : ASTNode {
     bool newline;
     PrintNode(std::string fmt,
               std::vector<std::unique_ptr<ASTNode>> arguments,
-              bool nl)
-        : formatString(std::move(fmt)), args(std::move(arguments)), newline(nl) {}
+              bool nl,
+              int l,
+              int c)
+        : ASTNode(l, c), formatString(std::move(fmt)), args(std::move(arguments)), newline(nl) {}
     ACCEPT_VISITOR
     void print(int indent = 0) const override {
         std::cout << std::string(indent, ' ')
@@ -386,6 +398,7 @@ struct PrintNode : ASTNode {
 };
 
 struct InputNode : ASTNode {
+    InputNode(int l, int c) : ASTNode(l, c) {}
     ACCEPT_VISITOR
     void print(int indent = 0) const override {
         std::cout << std::string(indent, ' ') << "Input!\n";
@@ -396,8 +409,8 @@ struct InputNode : ASTNode {
 
 struct ArrayLiteralNode : ASTNode {
     std::vector<std::unique_ptr<ASTNode>> elements;
-    ArrayLiteralNode(std::vector<std::unique_ptr<ASTNode>> elems)
-        : elements(std::move(elems)) {}
+    ArrayLiteralNode(std::vector<std::unique_ptr<ASTNode>> elems, int l, int c)
+        : ASTNode(l, c), elements(std::move(elems)) {}
     ACCEPT_VISITOR
     void print(int indent = 0) const override {
         std::cout << std::string(indent, ' ') << "ArrayLiteral[\n";
@@ -409,8 +422,8 @@ struct ArrayLiteralNode : ASTNode {
 struct ArrayAccessNode : ASTNode {
     std::string              name;
     std::unique_ptr<ASTNode> index;
-    ArrayAccessNode(const std::string& name, std::unique_ptr<ASTNode> idx)
-        : name(name), index(std::move(idx)) {}
+    ArrayAccessNode(const std::string& name, std::unique_ptr<ASTNode> idx, int l, int c)
+        : ASTNode(l, c), name(name), index(std::move(idx)) {}
     ACCEPT_VISITOR
     void print(int indent = 0) const override {
         std::cout << std::string(indent, ' ')
@@ -426,8 +439,10 @@ struct ArrayAssignNode : ASTNode {
     std::unique_ptr<ASTNode> value;
     ArrayAssignNode(const std::string& name,
                     std::unique_ptr<ASTNode> idx,
-                    std::unique_ptr<ASTNode> val)
-        : name(name), index(std::move(idx)), value(std::move(val)) {}
+                    std::unique_ptr<ASTNode> val,
+                    int l,
+                    int c)
+        : ASTNode(l, c), name(name), index(std::move(idx)), value(std::move(val)) {}
     ACCEPT_VISITOR
     void print(int indent = 0) const override {
         std::cout << std::string(indent, ' ')

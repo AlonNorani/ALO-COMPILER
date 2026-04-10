@@ -294,7 +294,7 @@ void CodeGenVisitor::visit(const BinaryOpNode& node)
             m_lastValue = builder.CreateOr(toBool(L), toBool(R), "or");
             m_lastVarType = VarType::BOOL;
             break;
-        default: throw std::runtime_error("Unsupported binary operator in codegen");
+        default: throw std::runtime_error("Unsupported binary operator in codegen at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
     }
 }
 
@@ -311,10 +311,10 @@ void CodeGenVisitor::visit(const UnaryOpNode& node)
             break;
         case TokenType::NOT:
             if (m_lastVarType == VarType::FLOAT)
-                throw std::runtime_error("NOT operator does not support float");
+                throw std::runtime_error("NOT operator does not support float at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
             m_lastValue = builder.CreateNot(m_lastValue, "not");
             break;
-        default: throw std::runtime_error("Unsupported unary operator in codegen");
+        default: throw std::runtime_error("Unsupported unary operator in codegen at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
     }
 }
 
@@ -387,10 +387,10 @@ void CodeGenVisitor::visit(const ArrayAccessNode& node)
     auto& builder = m_cg.getBuilder();
 
     llvm::AllocaInst* alloc = m_cg.lookupVariable(node.name);
-    if (!alloc) throw std::runtime_error("Unknown array: " + node.name);
+    if (!alloc) throw std::runtime_error("Unknown array: " + node.name + " at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
 
     llvm::Type* elemTy = m_cg.getArrayElementType(node.name);
-    if (!elemTy) throw std::runtime_error("No element-type for array: " + node.name);
+    if (!elemTy) throw std::runtime_error("No element-type for array: " + node.name + " at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
 
     node.index->accept(*this);
     llvm::Value* idx = m_lastValue;
@@ -416,10 +416,10 @@ void CodeGenVisitor::visit(const ArrayAssignNode& node)
     auto& builder = m_cg.getBuilder();
 
     llvm::AllocaInst* alloc = m_cg.lookupVariable(node.name);
-    if (!alloc) throw std::runtime_error("Unknown array: " + node.name);
+    if (!alloc) throw std::runtime_error("Unknown array: " + node.name + " at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
 
     llvm::Type* elemTy = m_cg.getArrayElementType(node.name);
-    if (!elemTy) throw std::runtime_error("No element-type for array: " + node.name);
+    if (!elemTy) throw std::runtime_error("No element-type for array: " + node.name + " at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
 
     node.index->accept(*this);
     llvm::Value* idx = m_lastValue;
@@ -451,7 +451,7 @@ void CodeGenVisitor::visit(const AssignmentNode& node)
     auto& builder = m_cg.getBuilder();
     node.expression->accept(*this);
     llvm::AllocaInst* var = m_cg.lookupVariable(node.variableName);
-    if (!var) throw std::runtime_error("Unknown variable: " + node.variableName);
+    if (!var) throw std::runtime_error("Unknown variable: " + node.variableName + " at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
 
     llvm::Type* targetType = var->getAllocatedType();
     llvm::Value* value = m_lastValue;
@@ -582,7 +582,7 @@ void CodeGenVisitor::visit(const ForNode& node)
         }
 
         if (!arrayAlloc || !arrayElemTy)
-            throw std::runtime_error("Unsupported array iterable in for loop");
+            throw std::runtime_error("Unsupported array iterable in for loop at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
 
         llvm::Value* startPtr = nullptr;
         llvm::Value* lengthValue = nullptr;
@@ -595,9 +595,9 @@ void CodeGenVisitor::visit(const ForNode& node)
                                                 allocatedTy->getArrayNumElements());
         } else if (allocatedTy->isPointerTy()) {
             (void)arrayAlloc;
-            throw std::runtime_error("For loops over parameter arrays are not supported");
+            throw std::runtime_error("For loops over parameter arrays are not supported at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
         } else {
-            throw std::runtime_error("Unsupported array iterable in for loop");
+            throw std::runtime_error("Unsupported array iterable in for loop at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
         }
 
         llvm::AllocaInst* idxAlloc = m_cg.createEntryBlockAlloca(func, node.iteratorName + "_idx", builder.getInt32Ty());
@@ -653,7 +653,7 @@ void CodeGenVisitor::visit(const FunctionNode& node)
     else if (node.returnType == "float")  retType = builder.getDoubleTy();
     else if (node.returnType == "bool")   retType = builder.getInt1Ty();
     else if (node.returnType == "string") retType = llvm::PointerType::getUnqual(context);
-    else throw std::runtime_error("Unsupported return type: " + node.returnType);
+    else throw std::runtime_error("Unsupported return type: " + node.returnType + " at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
 
     // Parameter types
     std::vector<llvm::Type*> argTypes;
@@ -667,7 +667,7 @@ void CodeGenVisitor::visit(const FunctionNode& node)
             else if (p.type == "float")  argTypes.push_back(builder.getDoubleTy());
             else if (p.type == "bool")   argTypes.push_back(builder.getInt1Ty());
             else if (p.type == "string") argTypes.push_back(llvm::PointerType::getUnqual(context));
-            else throw std::runtime_error("Unsupported parameter type: " + p.type);
+            else throw std::runtime_error("Unsupported parameter type: " + p.type + " at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
         }
     }
 
@@ -723,7 +723,7 @@ void CodeGenVisitor::visit(const CallNode& node)
     auto& builder = m_cg.getBuilder();
     llvm::Function* function = m_cg.getModule().getFunction(node.functionName);
     if (!function)
-        throw std::runtime_error("Unknown function: " + node.functionName);
+        throw std::runtime_error("Unknown function: " + node.functionName + " at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
 
     std::vector<llvm::Value*> args;
     unsigned paramIdx = 0;

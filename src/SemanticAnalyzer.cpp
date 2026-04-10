@@ -42,7 +42,7 @@ void SemanticAnalyzer::visit(const CastNode& node)
     else if (targetType == VarType::FLOAT && m_currentType == VarType::STRING)
         m_currentType = VarType::FLOAT;
     else
-        throw std::runtime_error("Invalid cast from " + varTypeToString(m_currentType) + " to " + node.targetType);
+        throw std::runtime_error("Invalid cast from " + varTypeToString(m_currentType) + " to " + node.targetType + " at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
 }
 
 void SemanticAnalyzer::visit(const LetNode& node)
@@ -55,13 +55,13 @@ void SemanticAnalyzer::visit(const LetNode& node)
             auto* lit = dynamic_cast<const ArrayLiteralNode*>(node.value.get());
             if (!lit)
                 throw std::runtime_error(
-                    "Array '" + node.variableName + "' must be initialised with an array literal");
+                    "Array '" + node.variableName + "' must be initialised with an array literal at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
 
             if(size == -1)
                 size = static_cast<int>(lit->elements.size());
             else if (static_cast<int>(lit->elements.size()) != size)
                 throw std::runtime_error(
-                    "Array '" + node.variableName + "' size mismatch");
+                    "Array '" + node.variableName + "' size mismatch at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
 
             for (const auto& elem : lit->elements) {
                 elem->accept(*this);
@@ -70,15 +70,15 @@ void SemanticAnalyzer::visit(const LetNode& node)
                 if (elemType == VarType::FLOAT && m_currentType == VarType::INT)
                     continue;
                 throw std::runtime_error(
-                    "Type mismatch in array literal for '" + node.variableName + "'");
+                    "Type mismatch in array literal for '" + node.variableName + "' at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
             }
         } else if (size <= 0) {
             throw std::runtime_error(
-                "Array '" + node.variableName + "' without initialiser needs explicit size");
+                "Array '" + node.variableName + "' without initialiser needs explicit size at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
         }
 
         if (!declareVariable(node.variableName, VarType::ARRAY, node.isMutable, elemType, size))
-            throw std::runtime_error("Variable already declared: " + node.variableName);
+            throw std::runtime_error("Variable already declared: " + node.variableName + " at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
 
         m_currentType = VarType::ARRAY;
         return;
@@ -86,7 +86,7 @@ void SemanticAnalyzer::visit(const LetNode& node)
 
     // Scalar
     if (!node.value)
-        throw std::runtime_error("Variable '" + node.variableName + "' must have an initialiser");
+        throw std::runtime_error("Variable '" + node.variableName + "' must have an initialiser at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
 
     node.value->accept(*this);
     VarType varType = m_currentType;
@@ -98,19 +98,19 @@ void SemanticAnalyzer::visit(const LetNode& node)
         } else if (annotated == VarType::FLOAT && varType == VarType::INT) {
             varType = VarType::FLOAT;
         } else {
-            throw std::runtime_error("Type mismatch in declaration of '" + node.variableName + "'");
+            throw std::runtime_error("Type mismatch in declaration of '" + node.variableName + "' at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
         }
     }
 
     if (!declareVariable(node.variableName, varType, node.isMutable))
-        throw std::runtime_error("Variable already declared: " + node.variableName);
+        throw std::runtime_error("Variable already declared: " + node.variableName + " at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
 }
 
 
 void SemanticAnalyzer::visit(const ArrayLiteralNode& node)
 {
     if (node.elements.empty())
-        throw std::runtime_error("Array literal must not be empty");
+        throw std::runtime_error("Array literal must not be empty at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
 
     node.elements[0]->accept(*this);
     VarType firstType = m_currentType;
@@ -118,7 +118,7 @@ void SemanticAnalyzer::visit(const ArrayLiteralNode& node)
     for (size_t i = 1; i < node.elements.size(); i++) {
         node.elements[i]->accept(*this);
         if (m_currentType != firstType)
-            throw std::runtime_error("All elements of an array literal must have the same type");
+            throw std::runtime_error("All elements of an array literal must have the same type at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
     }
 
     m_currentElementType = firstType;
@@ -128,13 +128,13 @@ void SemanticAnalyzer::visit(const ArrayLiteralNode& node)
 void SemanticAnalyzer::visit(const ArrayAccessNode& node)
 {
     auto var = lookupVariable(node.name);
-    if (!var) throw std::runtime_error("Undefined variable: " + node.name);
+    if (!var) throw std::runtime_error("Undefined variable: " + node.name + " at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
     if (var->get().type != VarType::ARRAY)
-        throw std::runtime_error("'" + node.name + "' is not an array");
+        throw std::runtime_error("'" + node.name + "' is not an array at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
 
     node.index->accept(*this);
     if (m_currentType != VarType::INT)
-        throw std::runtime_error("Array index must be int");
+        throw std::runtime_error("Array index must be int at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
 
     m_currentElementType = var->get().elementType;
     m_currentType        = var->get().elementType;
@@ -143,34 +143,34 @@ void SemanticAnalyzer::visit(const ArrayAccessNode& node)
 void SemanticAnalyzer::visit(const ArrayAssignNode& node)
 {
     auto var = lookupVariable(node.name);
-    if (!var) throw std::runtime_error("Undefined variable: " + node.name);
+    if (!var) throw std::runtime_error("Undefined variable: " + node.name + " at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
     if (var->get().type != VarType::ARRAY)
-        throw std::runtime_error("'" + node.name + "' is not an array");
+        throw std::runtime_error("'" + node.name + "' is not an array at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
     if (!var->get().mutableFlag)
-        throw std::runtime_error("Cannot assign to immutable array: " + node.name);
+        throw std::runtime_error("Cannot assign to immutable array: " + node.name + " at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
 
     node.index->accept(*this);
     if (m_currentType != VarType::INT)
-        throw std::runtime_error("Array index must be int");
+        throw std::runtime_error("Array index must be int at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
 
     node.value->accept(*this);
     if (m_currentType != var->get().elementType)
-        throw std::runtime_error("Type mismatch in array assignment to '" + node.name + "'");
+        throw std::runtime_error("Type mismatch in array assignment to '" + node.name + "' at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
 }
 
 
 void SemanticAnalyzer::visit(const AssignmentNode& node)
 {
     auto var = lookupVariable(node.variableName);
-    if (!var) throw std::runtime_error("Undefined variable: " + node.variableName);
+    if (!var) throw std::runtime_error("Undefined variable: " + node.variableName + " at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
     if (!var->get().mutableFlag)
-        throw std::runtime_error("Cannot assign to immutable variable: " + node.variableName);
+        throw std::runtime_error("Cannot assign to immutable variable: " + node.variableName + " at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
     node.expression->accept(*this);
     if (var->get().type == m_currentType)
         return;
     if (var->get().type == VarType::FLOAT && m_currentType == VarType::INT)
         return;
-    throw std::runtime_error("Type mismatch in assignment to: " + node.variableName);
+    throw std::runtime_error("Type mismatch in assignment to: " + node.variableName + " at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
 }
 
 void SemanticAnalyzer::visit(const BinaryOpNode& node)
