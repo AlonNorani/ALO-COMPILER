@@ -165,7 +165,17 @@ void SemanticAnalyzer::visit(const AssignmentNode& node)
     if (!var) throw std::runtime_error("Undefined variable: " + node.variableName + " at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
     if (!var->get().mutableFlag)
         throw std::runtime_error("Cannot assign to immutable variable: " + node.variableName + " at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
+    
+    // Validate ownership: can't assign to moved or borrowed values
+    validateCanMutate(node.variableName, node.line, node.column);
+    
     node.expression->accept(*this);
+    
+    // For heap types, this assignment moves the value
+    if (var->get().isHeapType()) {
+        clearBorrows(node.variableName);
+    }
+    
     if (var->get().type == m_currentType)
         return;
     if (var->get().type == VarType::FLOAT && m_currentType == VarType::INT)
@@ -230,6 +240,10 @@ void SemanticAnalyzer::visit(const VariableNode& node)
 {
     auto var = lookupVariable(node.name);
     if (!var) throw std::runtime_error("Undefined variable: " + node.name);
+    
+    // Check ownership: can't use moved variables
+    validateNotMoved(node.name, node.line, node.column);
+    
     m_currentType = var->get().type;
     if (m_currentType == VarType::ARRAY)
         m_currentElementType = var->get().elementType;
@@ -459,4 +473,101 @@ SemanticAnalyzer::lookupVariable(const std::string& name)
         if (found != it->end()) return std::ref(found->second);
     }
     return std::nullopt;
+}
+// ===== OWNERSHIP SYSTEM HELPERS =====
+
+bool SemanticAnalyzer::isHeapType(VarType type) const
+{
+    return type == VarType::STRING || type == VarType::ARRAY;
+}
+
+void SemanticAnalyzer::validateNotMoved(const std::string& varName, int line, int col)
+{
+    auto var = lookupVariable(varName);
+    if (!var) return;  // Already checked by lookupVariable elsewhere
+    
+    if (var->get().ownershipState == OwnershipState::MOVED) {
+        throw std::runtime_error("Variable '" + varName + "' has been moved and cannot be used at line " + 
+                                 std::to_string(line) + ", column " + std::to_string(col));
+    }
+}
+
+void SemanticAnalyzer::validateCanBorrow(const std::string& varName, OwnershipState requestedBorrow, int line, int col)
+{
+    auto var = lookupVariable(varName);
+    if (!var) return;
+    
+    VariableInfo& info = var->get();
+    
+    // Can't borrow moved values
+    if (info.ownershipState == OwnershipState::MOVED) {
+        throw std::runtime_error("Cannot borrow moved variable '" + varName + "' at line " + 
+                                 std::to_string(line) + ", column " + std::to_string(col));
+    }
+    
+    // Can't take mutable borrow while other borrows exist
+    if (requestedBorrow == OwnershipState::BORROWED_MUT && !info.activeBorrows.empty()) {
+        throw std::runtime_error("Cannot mutably borrow '" + varName + "' while it is already borrowed at line " + 
+                                 std::to_string(line) + ", column " + std::to_string(col));
+    }
+    
+    // Can't take immutable borrow while mutably borrowed
+    if (requestedBorrow == OwnershipState::BORROWED_IMM) {
+        for (const auto& borrow : info.activeBorrows) {
+            if (borrow.state == OwnershipState::BORROWED_MUT) {
+                throw std::runtime_error("Cannot immutably borrow '" + varName + "' while it is mutably borrowed at line " + 
+                                         std::to_string(line) + ", column " + std::to_string(col));
+            }
+        }
+    }
+}
+
+void SemanticAnalyzer::validateCanMutate(const std::string& varName, int line, int col)
+{
+    auto var = lookupVariable(varName);
+    if (!var) return;
+    
+    VariableInfo& info = var->get();
+    
+    // Can't mutate immutable variables
+    if (!info.mutableFlag) {
+        throw std::runtime_error("Cannot mutate immutable variable '" + varName + "' at line " + 
+                                 std::to_string(line) + ", column " + std::to_string(col));
+    }
+    
+    // Can't mutate while borrowed
+    if (!info.activeBorrows.empty()) {
+        throw std::runtime_error("Cannot mutate '" + varName + "' while it is borrowed at line " + 
+                                 std::to_string(line) + ", column " + std::to_string(col));
+    }
+}
+
+void SemanticAnalyzer::markAsMoved(const std::string& varName)
+{
+    auto var = lookupVariable(varName);
+    if (var && var->get().isHeapType()) {
+        var->get().ownershipState = OwnershipState::MOVED;
+        var->get().activeBorrows.clear();
+    }
+}
+
+void SemanticAnalyzer::markAsBorrowed(const std::string& varName, OwnershipState borrowType)
+{
+    auto var = lookupVariable(varName);
+    if (var && var->get().isHeapType()) {
+        BorrowInfo borrow{borrowType, ""};
+        var->get().activeBorrows.push_back(borrow);
+    }
+}
+
+void SemanticAnalyzer::clearBorrows(const std::string& varName)
+{
+    auto var = lookupVariable(varName);
+    if (var) {
+        var->get().activeBorrows.clear();
+        if (var->get().ownershipState == OwnershipState::BORROWED_IMM || 
+            var->get().ownershipState == OwnershipState::BORROWED_MUT) {
+            var->get().ownershipState = OwnershipState::OWNED;
+        }
+    }
 }

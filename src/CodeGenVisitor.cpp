@@ -59,7 +59,43 @@ void CodeGenVisitor::visit(const BoolNode& node)
 }
 void CodeGenVisitor::visit(const StringNode& node)
 {
-    m_lastValue   = m_cg.getBuilder().CreateGlobalString(node.value, ".str");
+    auto& builder = m_cg.getBuilder();
+    
+    // Allocate string on the heap using malloc
+    llvm::Function* mallocFunc = m_cg.getModule().getFunction("malloc");
+    if (!mallocFunc) {
+        llvm::FunctionType* mallocType = llvm::FunctionType::get(
+            llvm::PointerType::getUnqual(m_cg.getContext()),
+            {builder.getInt64Ty()},
+            false
+        );
+        mallocFunc = llvm::Function::Create(mallocType, llvm::Function::ExternalLinkage, "malloc", m_cg.getModule());
+    }
+    
+    // Create global string constant
+    llvm::Value* strConstant = builder.CreateGlobalString(node.value, ".str");
+    
+    // Get string length (including null terminator)
+    llvm::Value* strLen = llvm::ConstantInt::get(builder.getInt64Ty(), node.value.length() + 1);
+    
+    // Call malloc to allocate memory
+    llvm::Value* heapPtr = builder.CreateCall(mallocFunc, {strLen});
+    
+    // Copy string to heap memory
+    llvm::Function* strcpyFunc = m_cg.getModule().getFunction("strcpy");
+    if (!strcpyFunc) {
+        llvm::FunctionType* strcpyType = llvm::FunctionType::get(
+            llvm::PointerType::getUnqual(m_cg.getContext()),
+            {llvm::PointerType::getUnqual(m_cg.getContext()), 
+             llvm::PointerType::getUnqual(m_cg.getContext())},
+            false
+        );
+        strcpyFunc = llvm::Function::Create(strcpyType, llvm::Function::ExternalLinkage, "strcpy", m_cg.getModule());
+    }
+    
+    builder.CreateCall(strcpyFunc, {heapPtr, strConstant});
+    
+    m_lastValue   = heapPtr;
     m_lastVarType = VarType::STRING;
 }
 void CodeGenVisitor::visit(const VariableNode& node)
@@ -339,8 +375,32 @@ void CodeGenVisitor::visit(const LetNode& node)
             size = static_cast<int>(lit->elements.size());
         }
 
-        llvm::AllocaInst* alloc = m_cg.createArrayAlloca(func, node.variableName, elemLLVM, size);
-        m_cg.declareVariable(node.variableName, alloc);
+        // Allocate array on the heap
+        llvm::Function* mallocFunc = m_cg.getModule().getFunction("malloc");
+        if (!mallocFunc) {
+            llvm::FunctionType* mallocType = llvm::FunctionType::get(
+                llvm::PointerType::getUnqual(m_cg.getContext()),
+                {builder.getInt64Ty()},
+                false
+            );
+            mallocFunc = llvm::Function::Create(mallocType, llvm::Function::ExternalLinkage, "malloc", m_cg.getModule());
+        }
+
+        // Calculate total size: size * element_type_size
+        llvm::Value* elemSize = llvm::ConstantInt::get(builder.getInt64Ty(), 
+            m_cg.getModule().getDataLayout().getTypeAllocSize(elemLLVM));
+        llvm::Value* arraySize = llvm::ConstantInt::get(builder.getInt64Ty(), size);
+        llvm::Value* totalSize = builder.CreateMul(elemSize, arraySize);
+
+        // Call malloc
+        llvm::Value* heapPtr = builder.CreateCall(mallocFunc, {totalSize});
+        llvm::Type* elemPtrTy = llvm::PointerType::getUnqual(m_cg.getContext());
+        llvm::Value* heapArray = builder.CreateBitCast(heapPtr, llvm::PointerType::getUnqual(elemLLVM));
+
+        // Allocate pointer on stack to hold heap reference
+        llvm::AllocaInst* stackPtr = m_cg.createEntryBlockAlloca(func, node.variableName, llvm::PointerType::getUnqual(elemLLVM));
+        builder.CreateStore(heapArray, stackPtr);
+        m_cg.declareVariable(node.variableName, stackPtr);
         m_cg.setArrayElementType(node.variableName, elemLLVM);
 
         if (node.value) {
@@ -351,8 +411,8 @@ void CodeGenVisitor::visit(const LetNode& node)
                 if (elemLLVM->isDoubleTy() && m_lastVarType == VarType::INT) {
                     elem = builder.CreateSIToFP(elem, builder.getDoubleTy(), "int2float");
                 }
-                llvm::Value* idx = llvm::ConstantInt::get(builder.getInt32Ty(), i);
-                llvm::Value* ptr = m_cg.getArrayElementPtr(alloc, idx, elemLLVM);
+                llvm::Value* idx = llvm::ConstantInt::get(builder.getInt64Ty(), i);
+                llvm::Value* ptr = builder.CreateGEP(elemLLVM, heapArray, {idx});
                 builder.CreateStore(elem, ptr);
             }
         }

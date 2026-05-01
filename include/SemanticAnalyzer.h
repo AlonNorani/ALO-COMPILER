@@ -23,12 +23,35 @@ enum class VarType {
     ARRAY,
 };
 
+// Ownership state: tracks whether a variable is owned, borrowed immutably, or borrowed mutably
+enum class OwnershipState {
+    OWNED,           // Variable owns the value (normal state)
+    BORROWED_IMM,    // Variable is immutably borrowed (read-only reference)
+    BORROWED_MUT,    // Variable is mutably borrowed (exclusive write reference)
+    MOVED,           // Variable has been moved (cannot be used)
+};
+
+// Tracks who borrowed a variable
+struct BorrowInfo {
+    OwnershipState state;
+    std::string borrowedBy;  // Name of the variable/reference that borrowed this
+};
+
 struct VariableInfo {
     std::string name;
     VarType     type;
     bool        mutableFlag;
     VarType     elementType = VarType::INT;
     int         arraySize   = -1;
+    
+    // Ownership system: only heap types (STRING, ARRAY) use this
+    // Stack types (INT, FLOAT, BOOL) are always copied
+    OwnershipState ownershipState = OwnershipState::OWNED;
+    std::vector<BorrowInfo> activeBorrows;  // Active references to this variable
+    
+    bool isHeapType() const {
+        return type == VarType::STRING || type == VarType::ARRAY;
+    }
 };
 
 
@@ -102,6 +125,15 @@ private:
     std::string varTypeToString(VarType vt);
     std::optional<std::reference_wrapper<VariableInfo>>
             lookupVariable(const std::string& name);
+    
+    // Ownership system helpers
+    void    validateNotMoved(const std::string& varName, int line, int col);
+    void    validateCanBorrow(const std::string& varName, OwnershipState requestedBorrow, int line, int col);
+    void    validateCanMutate(const std::string& varName, int line, int col);
+    void    markAsMoved(const std::string& varName);
+    void    markAsBorrowed(const std::string& varName, OwnershipState borrowType);
+    void    clearBorrows(const std::string& varName);
+    bool    isHeapType(VarType type) const;
 };
 
 #endif

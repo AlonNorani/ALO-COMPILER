@@ -1,0 +1,24 @@
+// Ownership system demonstration
+// Stack types (int, float, bool): always copied, no ownership
+// Heap types (string, array): owned by one variable, can be borrowed or moved
+
+fn main() -> void {
+    // Stack types - always copied, no ownership needed
+    let a = 5;
+    let b = a;  // Copy
+    let c = a;  // Copy again
+    
+    // Heap types - owned by one variable
+    let s = "hello";
+    // Once implemented with borrow support:
+    // let r = &s;     // Immutable borrow
+    // let r2 = &s;    // Another immutable borrow - OK
+    // let m = &mut s; // Mutable borrow - ERROR (immutably borrowed)
+    
+    // Array example
+    let arr = [1, 2, 3];
+    // let arr2 = arr;  // Would move (heap type)
+    // let x = arr;     // ERROR - arr already moved
+    
+    println!("Ownership demo complete", );
+}

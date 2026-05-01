@@ -17,7 +17,13 @@ struct Parameter
 {
     std::string type;           
     std::string name;
-    bool        isArray = false; 
+    bool        isArray = false;
+    
+    // Borrow type for ownership system:
+    // "" or "owned" = move (T)
+    // "imm" or "&" = immutable borrow (&T)
+    // "mut" or "&mut" = mutable borrow (&mut T)
+    std::string borrowType = "";  // "" means owned/moved, "imm" means &T, "mut" means &mut T
 };
 
 inline std::string tokenTypeToString(TokenType type) {
