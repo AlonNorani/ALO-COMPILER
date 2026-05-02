@@ -19,6 +19,20 @@ Token Lexer::getNextToken()
 {
     skipWhitespace();
 
+    // Skip line comments starting with "//"
+    if (currentChar() == '/' && peekChar() == '/') {
+        // Skip to end of line
+        while (currentChar() != '\0' && currentChar() != '\n') {
+            advance();
+        }
+        // If we hit end of line, consume the newline
+        if (currentChar() == '\n') {
+            advance();
+        }
+        // Recursively get next token after skipping comment
+        return getNextToken();
+    }
+
     char currChar = currentChar();
 
     if (currChar == '\0')
