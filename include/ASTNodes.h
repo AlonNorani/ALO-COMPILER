@@ -9,16 +9,31 @@
 #include <stdexcept>
 #include "Token.h"
 
-// Defines the Abstract Syntax Tree (AST) node structures.
-// Each node represents a construct in the source code, used for semantic analysis and code generation.
+/**
+ * @file ASTNodes.h
+ * @brief Defines the Abstract Syntax Tree (AST) node structures for the ALO compiler.
+ *
+ * This file contains all the AST node classes that represent the syntactic structure
+ * of ALO programs. Each node type corresponds to a language construct like expressions,
+ * statements, declarations, etc. The AST is built by the parser and used by the
+ * semantic analyzer and code generator.
+ */
+
+// Forward declaration for visitor pattern
 struct ASTVisitor;
 
+/**
+ * @struct Parameter
+ * @brief Represents a function parameter with type and ownership information.
+ *
+ * Parameters can be owned (moved), immutable borrows (&T), or mutable borrows (&mut T).
+ */
 struct Parameter
 {
-    std::string type;           
-    std::string name;
-    bool        isArray = false;
-    
+    std::string type;           ///< The base type (int, float, string, etc.)
+    std::string name;           ///< The parameter name
+    bool        isArray = false; ///< Whether this is an array type
+
     // Borrow type for ownership system:
     // "" or "owned" = move (T)
     // "imm" or "&" = immutable borrow (&T)
@@ -46,24 +61,43 @@ inline std::string tokenTypeToString(TokenType type) {
     }
 }
 
+/**
+ * @struct ASTNode
+ * @brief Base class for all AST nodes in the syntax tree.
+ *
+ * Every node in the AST inherits from this class and implements the visitor pattern
+ * for traversal during semantic analysis and code generation.
+ */
 struct ASTNode {
-    int line, column;
+    int line, column;  ///< Position in source code for error reporting
     ASTNode(int l = 0, int c = 0) : line(l), column(c) {}
     virtual ~ASTNode() = default;
+
+    /// Accept a visitor for traversal (Visitor pattern)
     virtual void accept(ASTVisitor& visitor) const = 0;
+
+    /// Evaluate the node as an integer (for constant folding)
     virtual int  evaluate() const {
         throw std::runtime_error("Evaluate not implemented for this node type");
     }
+
+    /// Print the AST node for debugging
     virtual void print(int indent = 0) const = 0;
 };
 
 #define ACCEPT_VISITOR \
     void accept(ASTVisitor& visitor) const override { visitor.visit(*this); }
 
-//  Literals
+// ================================
+// Literal Value Nodes
+// ================================
 
+/**
+ * @struct NumberNode
+ * @brief Represents an integer literal in the source code.
+ */
 struct NumberNode : ASTNode {
-    int value;
+    int value;  ///< The integer value
     NumberNode(int val, int l, int c) : ASTNode(l, c), value(val) {}
     ACCEPT_VISITOR
     int  evaluate() const override { return value; }
@@ -72,8 +106,12 @@ struct NumberNode : ASTNode {
     }
 };
 
+/**
+ * @struct BoolNode
+ * @brief Represents a boolean literal (true/false) in the source code.
+ */
 struct BoolNode : ASTNode {
-    bool value;
+    bool value;  ///< The boolean value
     BoolNode(bool val, int l, int c) : ASTNode(l, c), value(val) {}
     ACCEPT_VISITOR
     int  evaluate() const override { return value ? 1 : 0; }
@@ -83,8 +121,12 @@ struct BoolNode : ASTNode {
     }
 };
 
+/**
+ * @struct FloatNode
+ * @brief Represents a floating-point literal in the source code.
+ */
 struct FloatNode : ASTNode {
-    double value;
+    double value;  ///< The floating-point value
     FloatNode(double val, int l, int c) : ASTNode(l, c), value(val) {}
     ACCEPT_VISITOR
     int  evaluate() const override { return static_cast<int>(value); }
@@ -93,8 +135,12 @@ struct FloatNode : ASTNode {
     }
 };
 
+/**
+ * @struct StringNode
+ * @brief Represents a string literal in the source code.
+ */
 struct StringNode : ASTNode {
-    std::string value;
+    std::string value;  ///< The string value
     StringNode(std::string val, int l, int c) : ASTNode(l, c), value(std::move(val)) {}
     ACCEPT_VISITOR
     void print(int indent = 0) const override {
@@ -173,10 +219,16 @@ struct UnaryOpNode : ASTNode {
     }
 };
 
-//  Variables
+// ================================
+// Variable and Declaration Nodes
+// ================================
 
+/**
+ * @struct VariableNode
+ * @brief Represents a variable reference in expressions.
+ */
 struct VariableNode : ASTNode {
-    std::string name;
+    std::string name;  ///< The variable name
     VariableNode(const std::string& n, int l, int c) : ASTNode(l, c), name(n) {}
     ACCEPT_VISITOR
     void print(int indent = 0) const override {
@@ -184,15 +236,22 @@ struct VariableNode : ASTNode {
     }
 };
 
+/**
+ * @struct LetNode
+ * @brief Represents a variable declaration (let statement).
+ *
+ * Handles both simple declarations and array declarations with optional type annotations.
+ */
 struct LetNode : ASTNode {
-    std::string              variableName;
-    std::unique_ptr<ASTNode> value;
-    bool                     isMutable;
+    std::string              variableName;    ///< Name of the variable being declared
+    std::unique_ptr<ASTNode> value;           ///< Initial value expression
+    bool                     isMutable;       ///< Whether the variable can be reassigned
 
-    bool        hasTypeAnnotation = false;
-    std::string annotatedType;
-    bool        isArray           = false;
-    int         arraySize         = -1;
+    // Type annotation information
+    bool        hasTypeAnnotation = false;   ///< Whether a type was explicitly specified
+    std::string annotatedType;               ///< The annotated type name
+    bool        isArray           = false;    ///< Whether this is an array type
+    int         arraySize         = -1;       ///< Array size (-1 for dynamic size)
 
     LetNode(const std::string& var,
             std::unique_ptr<ASTNode> val,

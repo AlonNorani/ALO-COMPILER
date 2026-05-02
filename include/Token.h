@@ -1,7 +1,18 @@
 #ifndef TOKEN_H
 #define TOKEN_H
+
 #include <string>
 #include <unordered_map>
+
+/**
+ * @file Token.h
+ * @brief Defines the token types and structures used by the lexer.
+ *
+ * This file contains all the token types that represent the basic building blocks
+ * of the ALO programming language, including keywords, operators, delimiters,
+ * and literals. It also provides mappings for converting strings and characters
+ * to their corresponding token types.
+ */
 
 // Defines all possible token types for the lexer.
 // Each token represents a syntactic element in the source code.
@@ -135,12 +146,19 @@ static std::unordered_map<char, TokenType> delimiterTokens = {
     {':', TokenType::COLON},
 };
 
+/**
+ * @struct Token
+ * @brief Represents a single token from the source code.
+ *
+ * A token contains the type of syntactic element, the actual text (lexeme),
+ * and position information for error reporting.
+ */
 struct Token
 {
-    TokenType   type;
-    std::string lexeme;
-    int         line;
-    int         column;  
+    TokenType   type;     ///< The type of this token
+    std::string lexeme;   ///< The actual text from the source code
+    int         line;     ///< Line number where this token appears (1-based)
+    int         column;   ///< Column number where this token starts (1-based)
 };
 
 #endif

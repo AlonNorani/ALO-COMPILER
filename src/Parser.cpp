@@ -1,7 +1,16 @@
 #include "Parser.h"
 
-// Parser class: Builds an Abstract Syntax Tree (AST) from tokens using recursive descent.
-// Handles syntax analysis and error reporting.
+/**
+ * @file Parser.cpp
+ * @brief Implementation of the recursive descent parser for ALO.
+ *
+ * The parser converts a stream of tokens into an Abstract Syntax Tree (AST).
+ * It uses recursive descent parsing with operator precedence to handle the
+ * grammar rules of the ALO language, including expressions, statements, and
+ * declarations.
+ */
+
+// Constructor: Initialize parser with lexer and get first token
 Parser::Parser(Lexer& lexer) : lexer(lexer)
 {
     advance();

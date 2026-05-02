@@ -1,9 +1,16 @@
 #include "CodeGenVisitor.h"
 
-// CodeGenVisitor implementation: Generates LLVM IR from AST nodes.
-// Each visit method emits the appropriate LLVM instructions for the node type.
-// Complex operations like type promotion and control flow are handled here.
+/**
+ * @file CodeGenVisitor.cpp
+ * @brief Implementation of LLVM IR code generation from AST nodes.
+ *
+ * This file contains the visitor methods that traverse the Abstract Syntax Tree
+ * and generate corresponding LLVM Intermediate Representation instructions.
+ * Handles all language constructs including expressions, statements, control flow,
+ * memory management, and ownership-aware operations for heap types.
+ */
 
+// Constructor: Initialize with code generator reference
 CodeGenVisitor::CodeGenVisitor(CodeGenerator& cg)
     : m_cg(cg), m_lastValue(nullptr), m_lastVarType(VarType::INT)
 {}

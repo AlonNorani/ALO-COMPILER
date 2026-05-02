@@ -12,73 +12,124 @@
 #include <stdexcept>
 #include "ASTVisitor.h"
 
-// Semantic Analyzer: Performs type checking, scoping, and semantic validation on the AST.
-// Ensures the program is semantically correct before code generation.
+/**
+ * @file SemanticAnalyzer.h
+ * @brief Defines the SemanticAnalyzer class that performs semantic analysis on the AST.
+ *
+ * The semantic analyzer checks for type correctness, variable scoping, function calls,
+ * and ownership/borrowing rules. It ensures the program is semantically valid before
+ * code generation.
+ */
+
+/**
+ * @enum VarType
+ * @brief Represents the different types that variables can have in ALO.
+ */
 enum class VarType {
-    INT,
-    FLOAT,
-    STRING,
-    BOOL,
-    VOID,
-    ARRAY,
+    INT,     ///< 32-bit integer
+    FLOAT,   ///< 64-bit floating point
+    STRING,  ///< Heap-allocated string
+    BOOL,    ///< Boolean value
+    VOID,    ///< Void type (for functions)
+    ARRAY,   ///< Heap-allocated array
 };
 
-// Ownership state: tracks whether a variable is owned, borrowed immutably, or borrowed mutably
+/**
+ * @enum OwnershipState
+ * @brief Tracks the ownership state of heap-allocated variables.
+ *
+ * Only applies to heap types (STRING, ARRAY). Stack types are always copied.
+ */
 enum class OwnershipState {
-    OWNED,           // Variable owns the value (normal state)
-    BORROWED_IMM,    // Variable is immutably borrowed (read-only reference)
-    BORROWED_MUT,    // Variable is mutably borrowed (exclusive write reference)
-    MOVED,           // Variable has been moved (cannot be used)
+    OWNED,           ///< Variable owns the value and can be used normally
+    BORROWED_IMM,    ///< Variable is immutably borrowed (read-only reference)
+    BORROWED_MUT,    ///< Variable is mutably borrowed (exclusive write reference)
+    MOVED,           ///< Variable has been moved and cannot be used
 };
 
-// Tracks who borrowed a variable
+/**
+ * @struct BorrowInfo
+ * @brief Information about an active borrow of a variable.
+ */
 struct BorrowInfo {
-    OwnershipState state;
-    std::string borrowedBy;  // Name of the variable/reference that borrowed this
+    OwnershipState state;       ///< Type of borrow (immutable or mutable)
+    std::string borrowedBy;     ///< Name of the variable/reference doing the borrowing
 };
 
+/**
+ * @struct VariableInfo
+ * @brief Complete information about a variable in the symbol table.
+ */
 struct VariableInfo {
-    std::string name;
-    VarType     type;
-    bool        mutableFlag;
-    VarType     elementType = VarType::INT;
-    int         arraySize   = -1;
-    
-    // Ownership system: only heap types (STRING, ARRAY) use this
-    // Stack types (INT, FLOAT, BOOL) are always copied
-    OwnershipState ownershipState = OwnershipState::OWNED;
-    std::vector<BorrowInfo> activeBorrows;  // Active references to this variable
-    
+    std::string name;           ///< Variable name
+    VarType     type;           ///< Variable type
+    bool        mutableFlag;    ///< Whether the variable can be reassigned
+    VarType     elementType = VarType::INT;  ///< For arrays: type of elements
+    int         arraySize   = -1;             ///< For arrays: size (-1 for dynamic)
+
+    // Ownership system: only used for heap types (STRING, ARRAY)
+    OwnershipState ownershipState = OwnershipState::OWNED;  ///< Current ownership state
+    std::vector<BorrowInfo> activeBorrows;  ///< List of active borrows
+
+    /**
+     * @brief Check if this variable has a heap-allocated type.
+     * @return true if the variable is a string or array
+     */
     bool isHeapType() const {
         return type == VarType::STRING || type == VarType::ARRAY;
     }
 };
 
-
+/**
+ * @struct ParamInfo
+ * @brief Information about a function parameter.
+ */
 struct ParamInfo {
-    VarType varType    = VarType::INT;   
-    VarType elemType   = VarType::INT;   
-    bool    isArray    = false;
-    std::string borrowType = ""; // "" = owned/move, "imm" = &T, "mut" = &mut T
+    VarType varType    = VarType::INT;   ///< Parameter type
+    VarType elemType   = VarType::INT;   ///< Element type (for arrays)
+    bool    isArray    = false;          ///< Whether this is an array parameter
+    std::string borrowType = "";         ///< Borrow type: ""=owned, "imm"=&T, "mut"=&mut T
 };
 
+/**
+ * @struct FunctionInfo
+ * @brief Information about a function definition.
+ */
 struct FunctionInfo
 {
-    std::vector<ParamInfo> params;       
-    VarType                returnType;
+    std::vector<ParamInfo> params;       ///< Function parameters
+    VarType                returnType;   ///< Return type
 };
 
+/** Symbol table type: stack of scopes, each scope is a map of name -> variable info */
 using SymbolTable    = std::vector<std::unordered_map<std::string, VariableInfo>>;
+/** Functions table: map of function name -> function info */
 using FunctionsTable = std::unordered_map<std::string, FunctionInfo>;
 
+/**
+ * @class SemanticAnalyzer
+ * @brief Performs semantic analysis on the AST including type checking and ownership validation.
+ *
+ * The semantic analyzer traverses the AST and:
+ * - Checks type correctness of expressions and assignments
+ * - Validates variable scoping and declarations
+ * - Ensures proper ownership and borrowing rules for heap types
+ * - Verifies function calls match their declarations
+ * - Prevents use-after-move and invalid borrowing patterns
+ */
 class SemanticAnalyzer : public ASTVisitor
 {
 public:
     SemanticAnalyzer();
     ~SemanticAnalyzer();
 
+    /**
+     * @brief Analyze the entire AST for semantic correctness.
+     * @param ast The abstract syntax tree to analyze
+     */
     void analyze(const std::vector<std::unique_ptr<ASTNode>>& ast);
 
+    // AST visitor methods (implementations in .cpp file)
     virtual void visit(const NumberNode&       node) override;
     virtual void visit(const FloatNode&        node) override;
     virtual void visit(const BoolNode&         node) override;
@@ -104,39 +155,49 @@ public:
     virtual void visit(const BorrowNode&       node) override;
     virtual void visit(const CopyNode&         node) override;
 
-
+    /**
+     * @brief Get the current element type being processed.
+     * @return The current element type
+     */
     VarType getCurrentElementType() const { return m_currentElementType; }
 
 private:
-    VarType m_currentType               = VarType::INT;
-    VarType m_currentElementType        = VarType::INT;
-    VarType m_currentFunctionReturnType = VarType::VOID;
-    bool    m_foundReturn               = false;
-    bool    m_insideFunction            = false;
+    VarType m_currentType               = VarType::INT;   ///< Current expression type
+    VarType m_currentElementType        = VarType::INT;   ///< Current array element type
+    VarType m_currentFunctionReturnType = VarType::VOID;  ///< Current function's return type
+    bool    m_foundReturn               = false;           ///< Whether a return was found in current function
+    bool    m_insideFunction            = false;           ///< Whether we're inside a function
 
-    SymbolTable    m_symbolTable;
-    FunctionsTable m_functionsTable;
+    SymbolTable    m_symbolTable;     ///< Stack of symbol tables (one per scope)
+    FunctionsTable m_functionsTable;  ///< Global function definitions
 
-    void    enterScope();
-    void    exitScope();
-    bool    declareVariable(const std::string& name,
-                            VarType            type,
-                            bool               mutableFlag  = false,
-                            VarType            elementType  = VarType::INT,
-                            int                arraySize    = -1);
+    // Scope management
+    void enterScope();  ///< Enter a new scope
+    void exitScope();   ///< Exit current scope
+
+    // Variable management
+    bool declareVariable(const std::string& name,
+                        VarType            type,
+                        bool               mutableFlag  = false,
+                        VarType            elementType  = VarType::INT,
+                        int                arraySize    = -1);
+
+    // Type conversion utilities
     VarType stringToVarType(const std::string& typeStr);
     std::string varTypeToString(VarType vt);
+
+    // Variable lookup
     std::optional<std::reference_wrapper<VariableInfo>>
-            lookupVariable(const std::string& name);
-    
-    // Ownership system helpers
-    void    validateNotMoved(const std::string& varName, int line, int col);
-    void    validateCanBorrow(const std::string& varName, OwnershipState requestedBorrow, int line, int col);
-    void    validateCanMutate(const std::string& varName, int line, int col);
-    void    markAsMoved(const std::string& varName);
-    void    markAsBorrowed(const std::string& varName, OwnershipState borrowType);
-    void    clearBorrows(const std::string& varName);
-    bool    isHeapType(VarType type) const;
+        lookupVariable(const std::string& name);
+
+    // Ownership system validation
+    void validateNotMoved(const std::string& varName, int line, int col);  ///< Ensure variable wasn't moved
+    void validateCanBorrow(const std::string& varName, OwnershipState requestedBorrow, int line, int col);  ///< Check borrowing rules
+    void validateCanMutate(const std::string& varName, int line, int col);  ///< Check if variable can be mutated
+    void markAsMoved(const std::string& varName);        ///< Mark variable as moved
+    void markAsBorrowed(const std::string& varName, OwnershipState borrowType);  ///< Record a borrow
+    void clearBorrows(const std::string& varName);       ///< Clear all borrows of a variable
+    bool isHeapType(VarType type) const;                 ///< Check if type is heap-allocated
 };
 
 #endif

@@ -1,8 +1,20 @@
 #include "SemanticAnalyzer.h"
 
+/**
+ * @file SemanticAnalyzer.cpp
+ * @brief Implementation of semantic analysis for the ALO compiler.
+ *
+ * Performs type checking, variable scoping, function validation, and ownership
+ * analysis. Ensures the program is semantically correct before code generation,
+ * including proper use of heap-allocated types (strings and arrays) with move
+ * semantics and borrowing rules.
+ */
+
+// Constructor: Initialize with global scope
 SemanticAnalyzer::SemanticAnalyzer() { enterScope(); }
 SemanticAnalyzer::~SemanticAnalyzer() {}
 
+// Main analysis entry point: traverse entire AST
 void SemanticAnalyzer::analyze(const std::vector<std::unique_ptr<ASTNode>>& ast)
 {
     for (const auto& node : ast) node->accept(*this);

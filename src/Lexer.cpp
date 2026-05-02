@@ -1,7 +1,15 @@
 #include "Lexer.h"
 
-// Lexer class: Converts source code string into a sequence of tokens.
-// Tracks position, line, and column for error reporting.
+/**
+ * @file Lexer.cpp
+ * @brief Implementation of the lexical analyzer for the ALO language.
+ *
+ * The lexer tokenizes source code by breaking it into meaningful units called tokens.
+ * It recognizes keywords, identifiers, literals, operators, and delimiters while
+ * skipping whitespace and comments. Position tracking enables accurate error reporting.
+ */
+
+// Constructor: Initialize lexer with source code and starting position
 Lexer::Lexer(const std::string &source)
     : m_source(source), m_pos(0), m_line(1), m_column(1)
 {}
@@ -77,6 +85,15 @@ void Lexer::skipWhitespace()
         advance();
 }
 
+/**
+ * @brief Tokenize a numeric literal (integer or float).
+ *
+ * Recognizes both integer and floating-point numbers. Handles decimal points
+ * but prevents multiple dots (which would be invalid). Advances through all
+ * consecutive digits and at most one decimal point.
+ *
+ * @return Token representing the numeric value
+ */
 Token Lexer::lexNumber()
 {
     int startLine   = m_line;
@@ -98,6 +115,16 @@ Token Lexer::lexNumber()
     return Token{TokenType::NUMBER, value, startLine, startColumn};
 }
 
+/**
+ * @brief Tokenize an identifier or keyword.
+ *
+ * Collects alphanumeric characters and underscores to form identifiers.
+ * Checks for special macro suffixes (! for print!, println!, input!) and
+ * looks up keywords in the keyword table. Returns identifier token if not
+ * a keyword or macro.
+ *
+ * @return Token representing identifier, keyword, or macro
+ */
 Token Lexer::lexIdentifierOrKeyword()
 {
     std::string value;

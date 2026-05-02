@@ -1,9 +1,16 @@
 #include "CodeGenerator.h"
 #include <llvm/Support/raw_ostream.h>
 
-// CodeGenerator: Manages LLVM IR generation, including contexts, modules, builders,
-// and symbol tables for variables and arrays. Handles scope management for local variables.
+/**
+ * @file CodeGenerator.cpp
+ * @brief Implementation of LLVM IR code generation utilities.
+ *
+ * Provides the infrastructure for generating LLVM Intermediate Representation
+ * from the ALO AST. Manages LLVM contexts, modules, and builders while
+ * maintaining symbol tables for variables and their metadata.
+ */
 
+// Constructor: Initialize LLVM context, module, and global scope
 CodeGenerator::CodeGenerator()
     : m_builder(m_context),
       m_module("alo_module", m_context)
