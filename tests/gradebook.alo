@@ -1,0 +1,160 @@
+// ================================
+// ALO Gradebook POC
+// Tracks 5 students and 4 subjects,
+// computes averages, finds top scorer,
+// prints a report card for each student.
+// ================================
+
+// Recursive sum of first `len` elements
+fn sum(scores: &int[], len: int) -> int {
+    if (len <= 0) {
+        return 0;
+    }
+    return scores[len - 1] + sum(&scores, len - 1);
+}
+
+// Recursive max of first `len` elements
+fn max(scores: &int[], len: int) -> int {
+    if (len == 1) {
+        return scores[0];
+    }
+    let rest: int = max(&scores, len - 1);
+    if (scores[len - 1] > rest) {
+        return scores[len - 1];
+    } else {
+        return rest;
+    }
+}
+
+// Return letter grade based on score
+fn grade(score: int) -> string {
+    if (score >= 90) { return "A"; }
+    if (score >= 80) { return "B"; }
+    if (score >= 70) { return "C"; }
+    if (score >= 60) { return "D"; }
+    return "F";
+}
+
+// Print a simple divider
+fn divider() -> void {
+    println!("----------------------------");
+}
+
+// Print a student report card
+// label is borrowed — caller keeps it
+fn report(name: &string, avg: int, best: int) -> void {
+    let lgrade: string = grade(avg);
+    println!("Student : {}", name);
+    println!("Average : {}", avg);
+    println!("Best    : {}", best);
+    println!("Grade   : {}", lgrade);
+    // lgrade is moved into println, avg/best are ints (copied)
+}
+
+fn main() -> void {
+
+    // ---- Data: 5 students, 4 subjects each ----
+    // Each row is one student's scores: Math, English, Science, History
+
+    let mut s0: int[4] = [92, 85, 78, 90];  // Alice
+    let mut s1: int[4] = [74, 68, 80, 72];  // Bob
+    let mut s2: int[4] = [88, 91, 95, 87];  // Carol
+    let mut s3: int[4] = [55, 60, 58, 63];  // Dave
+    let mut s4: int[4] = [70, 75, 69, 80];  // Eve
+
+    // Student names as strings (owned)
+    let name0: string = "Alice";
+    let name1: string = "Bob";
+    let name2: string = "Carol";
+    let name3: string = "Dave";
+    let name4: string = "Eve";
+
+    // Number of subjects
+    let SUBJECTS: int = 4;
+
+    // ---- Compute averages and bests ----
+    let avg0: int = sum(&s0, SUBJECTS) / SUBJECTS;
+    let avg1: int = sum(&s1, SUBJECTS) / SUBJECTS;
+    let avg2: int = sum(&s2, SUBJECTS) / SUBJECTS;
+    let avg3: int = sum(&s3, SUBJECTS) / SUBJECTS;
+    let avg4: int = sum(&s4, SUBJECTS) / SUBJECTS;
+
+    let best0: int = max(&s0, SUBJECTS);
+    let best1: int = max(&s1, SUBJECTS);
+    let best2: int = max(&s2, SUBJECTS);
+    let best3: int = max(&s3, SUBJECTS);
+    let best4: int = max(&s4, SUBJECTS);
+
+    // ---- Print report cards ----
+    // Names are borrowed by report() — they stay alive after the call
+    println!("====  REPORT CARDS  ====");
+    divider();
+    report(&name0, avg0, best0);
+    divider();
+    report(&name1, avg1, best1);
+    divider();
+    report(&name2, avg2, best2);
+    divider();
+    report(&name3, avg3, best3);
+    divider();
+    report(&name4, avg4, best4);
+    divider();
+
+    // ---- Find class top scorer ----
+    // Collect averages into an array for comparison
+    let mut avgs: int[5] = [avg0, avg1, avg2, avg3, avg4];
+    let class_best: int = max(&avgs, 5);
+    let class_sum: int = sum(&avgs, 5);
+    let class_avg: int = class_sum / 5;
+
+    println!("====  CLASS SUMMARY  ====");
+    println!("Class average : {}", class_avg);
+    println!("Top score avg : {}", class_best);
+
+    // ---- Count passing students (avg >= 70) ----
+    let mut passing: int = 0;
+    let mut i: int = 0;
+    for avg in avgs
+    {
+        if (avg >= 70) {
+            passing = passing + 1;
+        }
+    }
+    println!("Passing (>=70): {}", passing);
+    println!("Failing       : {}", 5 - passing);
+
+    // ---- Bonus: give Dave 10 extra credit points and recheck ----
+    println!("====  EXTRA CREDIT  ====");
+    println!("Dave gets +10 extra credit");
+
+    // Deep copy Dave's scores before modifying
+    let s3_original: int[4] = copy(s3);
+    let mut ec: int = 0;
+    while (ec < SUBJECTS) {
+        s3[ec] = s3[ec] + 10;
+        // Cap at 100
+        if (s3[ec] > 100) {
+            s3[ec] = 100;
+        }
+        ec = ec + 1;
+    }
+
+    let new_avg3: int = sum(&s3, SUBJECTS) / SUBJECTS;
+    let old_avg3: int = sum(&s3_original, SUBJECTS) / SUBJECTS;
+
+    // name3 is still alive — it was only borrowed by report(), never moved
+    println!("{} old avg: {}", name3, old_avg3);
+    println!("{} new avg: {}", name3, new_avg3);
+
+    let old_grade: string = grade(old_avg3);
+    let new_grade: string = grade(new_avg3);
+    println!("Grade change: {} -> {}", old_grade, new_grade);
+
+    // ---- Ownership demo: move a name ----
+    println!("====  OWNERSHIP  ====");
+    let winner: string = name2;          // Carol's name is MOVED here
+    // name2 is now dead — using it would be a compile error
+    println!("Top student: {}", winner); // winner is valid
+
+    println!("Done.");
+}

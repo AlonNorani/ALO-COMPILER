@@ -71,7 +71,6 @@ void compile(const std::string& source)
     CodeGenerator codeGen;
     CodeGenVisitor visitor(codeGen);
     visitor.generate(ast); // generate LLVM IR from AST
-    codeGen.printIR(); // print the generated LLVM IR to stdout
 
     // Phase 4: Compilation to Executable
     // Use LLVM tools to create native executable
@@ -79,7 +78,7 @@ void compile(const std::string& source)
 
     system("llc -filetype=obj output.ll -o output.o");
     system("gcc -no-pie output.o -o output");
-    std::cout << "Code generation completed successfully." << std::endl;
+    std::cout << "Compilation completed successfully." << std::endl;
 }
 
 /**
