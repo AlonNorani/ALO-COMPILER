@@ -1,0 +1,9 @@
+fn main() -> void {
+    let s1 = "hello";
+    let s2 = s1;
+    println!("Moved string: {}", s2);
+
+    let arr1 = [1, 2, 3];
+    let arr2 = arr1;
+    println!("Moved array element: {}", arr2[0]);
+}

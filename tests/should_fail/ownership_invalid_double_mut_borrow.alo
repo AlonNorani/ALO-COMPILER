@@ -1,0 +1,6 @@
+fn main() -> void {
+    let mut nums: int[] = [1, 2, 3];
+    let m1 = &mut nums;
+    let m2 = &mut nums;
+    println!("{} {}", m1[0], m2[0]);
+}

@@ -1,0 +1,5 @@
+fn main() -> void {
+    let s1 = "first";
+    let s2 = s1;
+    let s3 = s1;
+}

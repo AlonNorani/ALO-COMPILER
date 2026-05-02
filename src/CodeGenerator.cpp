@@ -1,9 +1,16 @@
 #include "CodeGenerator.h"
 #include <llvm/Support/raw_ostream.h>
 
-// CodeGenerator: Manages LLVM IR generation, including contexts, modules, builders,
-// and symbol tables for variables and arrays. Handles scope management for local variables.
+/**
+ * @file CodeGenerator.cpp
+ * @brief Implementation of LLVM IR code generation utilities.
+ *
+ * Provides the infrastructure for generating LLVM Intermediate Representation
+ * from the ALO AST. Manages LLVM contexts, modules, and builders while
+ * maintaining symbol tables for variables and their metadata.
+ */
 
+// Constructor: Initialize LLVM context, module, and global scope
 CodeGenerator::CodeGenerator()
     : m_builder(m_context),
       m_module("alo_module", m_context)
@@ -144,4 +151,16 @@ void CodeGenerator::writeIRToFile(const std::string& filename)
     llvm::raw_fd_ostream file(filename, EC);
     if (EC) throw std::runtime_error("Failed to open IR output file");
     m_module.print(file, nullptr);
+}
+
+void CodeGenerator::setArraySize(const std::string& name, int size)
+{
+    m_arraySizes[name] = size;
+}
+
+int CodeGenerator::getArraySize(const std::string& name)
+{
+    auto it = m_arraySizes.find(name);
+    if (it != m_arraySizes.end()) return it->second;
+    return -1;
 }

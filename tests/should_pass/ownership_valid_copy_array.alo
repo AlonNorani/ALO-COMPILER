@@ -1,0 +1,9 @@
+fn main() -> void {
+    let arr1: int[] = [1, 2, 3];
+    let arr2 = copy(arr1);
+    println!("{} {}", arr1[0], arr2[0]);
+
+    let s1 = "hello";
+    let s2 = copy(s1);
+    println!("{} {}", s1, s2);
+}
