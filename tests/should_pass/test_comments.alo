@@ -1,0 +1,14 @@
+fn main() -> void {
+    // This is a comment at the start of a line
+    let x = 5; // Comment after a statement
+    let y = 10;
+
+    // Multi-line comment test
+    // This is another comment
+    let sum = x + y; // Calculate sum
+
+    // Comment before println
+    println!("Sum: {}", sum); // Print result
+
+    // Comment at end of function
+}

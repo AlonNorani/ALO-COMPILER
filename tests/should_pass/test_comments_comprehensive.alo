@@ -1,0 +1,19 @@
+// Test file for comprehensive comment support
+fn main() -> void {
+    // Comment at start of function
+    let a = 1; // Comment after statement
+    let b = 2; // Another comment
+
+    // Comment on its own line
+    let c = a + b; // Comment after expression
+
+    // Test comment at end of line with no code after
+    println!("Result: {}", c); //
+
+    // Test multiple comments
+    // Line 1
+    // Line 2
+    // Line 3
+
+    // Comment right before end
+}
