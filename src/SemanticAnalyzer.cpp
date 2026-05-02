@@ -118,8 +118,13 @@ void SemanticAnalyzer::visit(const LetNode& node)
         }
     }
 
-    if (!declareVariable(node.variableName, varType, node.isMutable))
-        throw std::runtime_error("Variable already declared: " + node.variableName + " at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
+    if (varType == VarType::ARRAY) {
+        if (!declareVariable(node.variableName, varType, node.isMutable, m_currentElementType, -1))
+            throw std::runtime_error("Variable already declared: " + node.variableName + " at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
+    } else {
+        if (!declareVariable(node.variableName, varType, node.isMutable))
+            throw std::runtime_error("Variable already declared: " + node.variableName + " at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
+    }
 }
 
 
@@ -189,8 +194,10 @@ void SemanticAnalyzer::visit(const AssignmentNode& node)
     
     node.expression->accept(*this);
     
-    // For heap types, this assignment moves the value
+    // For heap types, this assignment moves the value and reinitializes the target if it was moved.
     if (var->get().isHeapType()) {
+        if (var->get().ownershipState == OwnershipState::MOVED)
+            var->get().ownershipState = OwnershipState::OWNED;
         clearBorrows(node.variableName);
     }
     

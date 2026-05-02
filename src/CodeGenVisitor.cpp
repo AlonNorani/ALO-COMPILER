@@ -509,6 +509,10 @@ void CodeGenVisitor::visit(const LetNode& node)
     std::string rhsVarName;
     if (auto* varNode = dynamic_cast<const VariableNode*>(node.value.get()))
         rhsVarName = varNode->name;
+    else if (auto* borrowNode = dynamic_cast<const BorrowNode*>(node.value.get()))
+        rhsVarName = borrowNode->name;
+    else if (auto* copyNode = dynamic_cast<const CopyNode*>(node.value.get()))
+        rhsVarName = copyNode->name;
 
     node.value->accept(*this);
     llvm::Value*      val    = m_lastValue;
@@ -525,8 +529,8 @@ void CodeGenVisitor::visit(const LetNode& node)
     builder.CreateStore(val, alloc);
     m_cg.declareVariable(node.variableName, alloc);
 
-    // Propagate array element type and size metadata for unannotated array moves/copies
-    // e.g. let arr2 = arr1  (no type annotation)
+    // Propagate array element type and size metadata for unannotated array moves/copies/borrows
+    // e.g. let arr2 = arr1, let r = &arr, let arr3 = copy(arr1)
     if (!rhsVarName.empty()) {
         llvm::Type* srcElemTy = m_cg.getArrayElementType(rhsVarName);
         int         srcSize   = m_cg.getArraySize(rhsVarName);
@@ -1108,6 +1112,41 @@ void CodeGenVisitor::visit(const CopyNode& node)
     llvm::AllocaInst* srcAlloc = m_cg.lookupVariable(node.name);
     if (!srcAlloc) throw std::runtime_error("Unknown variable in copy(): " + node.name);
 
+    // Check if this is an array first (by metadata)
+    llvm::Type* elemTy = m_cg.getArrayElementType(node.name);
+    if (elemTy) {
+        // Array copy
+        int srcSize = m_cg.getArraySize(node.name);
+        uint64_t elemSz = elemTy->isDoubleTy() ? 8 : 4;
+        uint64_t totalSz = (uint64_t)srcSize * elemSz;
+
+        llvm::Function* mallocFunc = mod.getFunction("malloc");
+        if (!mallocFunc) {
+            llvm::FunctionType* ft = llvm::FunctionType::get(
+                llvm::PointerType::getUnqual(ctx), {builder.getInt64Ty()}, false);
+            mallocFunc = llvm::Function::Create(ft, llvm::Function::ExternalLinkage, "malloc", mod);
+        }
+        llvm::Function* memcpyFunc = mod.getFunction("memcpy");
+        if (!memcpyFunc) {
+            llvm::FunctionType* ft = llvm::FunctionType::get(
+                llvm::PointerType::getUnqual(ctx),
+                {llvm::PointerType::getUnqual(ctx), llvm::PointerType::getUnqual(ctx), builder.getInt64Ty()},
+                false);
+            memcpyFunc = llvm::Function::Create(ft, llvm::Function::ExternalLinkage, "memcpy", mod);
+        }
+
+        llvm::Value* sizeVal = llvm::ConstantInt::get(builder.getInt64Ty(), totalSz);
+        llvm::Value* heapPtr = builder.CreateCall(mallocFunc, {sizeVal}, "arraycopy");
+
+        // Load source heap pointer and memcpy
+        llvm::Value* srcPtr = builder.CreateLoad(llvm::PointerType::getUnqual(elemTy), srcAlloc, node.name + "_src");
+        builder.CreateCall(memcpyFunc, {heapPtr, srcPtr, sizeVal});
+
+        m_lastValue = heapPtr;
+        m_lastVarType = VarType::ARRAY;
+        return;
+    }
+
     llvm::Type* allocTy = srcAlloc->getAllocatedType();
 
     if (allocTy->isPointerTy()) {
@@ -1124,11 +1163,11 @@ void CodeGenVisitor::visit(const CopyNode& node)
         m_lastValue   = builder.CreateCall(strdupFunc, {srcVal}, "strcopy");
         m_lastVarType = VarType::STRING;
     } else if (allocTy->isArrayTy()) {
-        // Array copy: allocate new array on heap via malloc + memcpy
+        // Stack array copy: allocate new array on heap via malloc + memcpy
         llvm::ArrayType* arrTy   = llvm::cast<llvm::ArrayType>(allocTy);
         uint64_t         numElems = arrTy->getNumElements();
-        llvm::Type*      elemTy  = arrTy->getElementType();
-        uint64_t elemSz = elemTy->isDoubleTy() ? 8 : 4;
+        llvm::Type*      elemTy2  = arrTy->getElementType();
+        uint64_t elemSz = elemTy2->isDoubleTy() ? 8 : 4;
         uint64_t         totalSz = numElems * elemSz;
 
         llvm::Function* mallocFunc = mod.getFunction("malloc");

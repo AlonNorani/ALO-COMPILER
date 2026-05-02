@@ -1,0 +1,14 @@
+fn main() -> void {
+    let mut arr: int[] = [10, 20, 30];
+    {
+        let r = &arr;
+        println!("{}", r[1]);
+    }
+    arr[1] = 99;
+    println!("{}", arr[1]);
+
+    let mut s = "one";
+    let s2 = s;
+    s = "two";
+    println!("{} {}", s2, s);
+}
