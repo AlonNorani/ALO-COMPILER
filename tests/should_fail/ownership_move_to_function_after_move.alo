@@ -1,0 +1,9 @@
+fn consume(s: string) -> void {
+    println!("Consumed: {}", s);
+}
+
+fn main() -> void {
+    let s = "hello";
+    let s2 = s;
+    consume(s);
+}

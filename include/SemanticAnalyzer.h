@@ -59,6 +59,7 @@ struct ParamInfo {
     VarType varType    = VarType::INT;   
     VarType elemType   = VarType::INT;   
     bool    isArray    = false;
+    std::string borrowType = ""; // "" = owned/move, "imm" = &T, "mut" = &mut T
 };
 
 struct FunctionInfo
@@ -100,6 +101,8 @@ public:
     virtual void visit(const ArrayAssignNode&  node) override;
     virtual void visit(const ForNode&          node) override;
     virtual void visit(const InputNode&        node) override;
+    virtual void visit(const BorrowNode&       node) override;
+    virtual void visit(const CopyNode&         node) override;
 
 
     VarType getCurrentElementType() const { return m_currentElementType; }

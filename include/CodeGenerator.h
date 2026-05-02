@@ -52,6 +52,9 @@ public:
     void              setArrayElementType(const std::string& name, llvm::Type* elemTy);
     llvm::Type*       getArrayElementType(const std::string& name);
 
+    void              setArraySize(const std::string& name, int size);
+    int               getArraySize(const std::string& name);
+
     llvm::Function* createMainFunction();
     void            finishMain();
 
@@ -66,6 +69,7 @@ private:
     ScopesTable m_scopes;
 
     std::unordered_map<std::string, llvm::Type*> m_arrayElemTypes;
+    std::unordered_map<std::string, int> m_arraySizes;
 };
 
 #endif

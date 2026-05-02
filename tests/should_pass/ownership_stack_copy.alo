@@ -1,0 +1,16 @@
+fn main() -> void {
+    let a = 5;
+    let b = a;
+    let c = a;
+    let d = b;
+
+    let x = 3.14;
+    let y = x;
+    let z = y;
+
+    let flag = true;
+    let flag2 = flag;
+
+    println!("Stack types: {} {} {} {} {} {} {}", a, b, c, d, x, y, z);
+    println!("Bool: {}", flag2);
+}

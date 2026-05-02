@@ -1,0 +1,17 @@
+fn consume_string(s: string) -> void {
+    println!("Consumed string: {}", s);
+}
+
+fn consume_array(arr: int[]) -> void {
+    println!("Consumed array");
+}
+
+fn main() -> void {
+    let s = "hello world";
+    consume_string(s);
+
+    let arr = [10, 20, 30, 40];
+    consume_array(arr);
+
+    println!("Functions completed successfully");
+}

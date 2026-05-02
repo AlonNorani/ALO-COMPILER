@@ -52,25 +52,34 @@ void SemanticAnalyzer::visit(const LetNode& node)
         int     size     = node.arraySize;
 
         if (node.value) {
-            auto* lit = dynamic_cast<const ArrayLiteralNode*>(node.value.get());
-            if (!lit)
-                throw std::runtime_error(
-                    "Array '" + node.variableName + "' must be initialised with an array literal at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
+            auto* lit  = dynamic_cast<const ArrayLiteralNode*>(node.value.get());
+            auto* copy = dynamic_cast<const CopyNode*>(node.value.get());
 
-            if(size == -1)
-                size = static_cast<int>(lit->elements.size());
-            else if (static_cast<int>(lit->elements.size()) != size)
-                throw std::runtime_error(
-                    "Array '" + node.variableName + "' size mismatch at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
+            if (copy) {
+                copy->accept(*this);
+                if (m_currentType != VarType::ARRAY)
+                    throw std::runtime_error("copy() source is not an array at line " + std::to_string(node.line));
+                if (m_currentElementType != elemType)
+                    throw std::runtime_error("Array element type mismatch in copy() at line " + std::to_string(node.line));
+            } else if (lit) {
+                if (size == -1)
+                    size = static_cast<int>(lit->elements.size());
+                else if (static_cast<int>(lit->elements.size()) != size)
+                    throw std::runtime_error(
+                        "Array '" + node.variableName + "' size mismatch at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
 
-            for (const auto& elem : lit->elements) {
-                elem->accept(*this);
-                if (m_currentType == elemType)
-                    continue;
-                if (elemType == VarType::FLOAT && m_currentType == VarType::INT)
-                    continue;
+                for (const auto& elem : lit->elements) {
+                    elem->accept(*this);
+                    if (m_currentType == elemType)
+                        continue;
+                    if (elemType == VarType::FLOAT && m_currentType == VarType::INT)
+                        continue;
+                    throw std::runtime_error(
+                        "Type mismatch in array literal for '" + node.variableName + "' at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
+                }
+            } else {
                 throw std::runtime_error(
-                    "Type mismatch in array literal for '" + node.variableName + "' at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
+                    "Array '" + node.variableName + "' must be initialised with an array literal or copy() at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
             }
         } else if (size <= 0) {
             throw std::runtime_error(
@@ -102,6 +111,13 @@ void SemanticAnalyzer::visit(const LetNode& node)
         }
     }
 
+    // If RHS is a variable of heap type, that's a move — mark source as moved
+    if (isHeapType(varType)) {
+        if (auto* varNode = dynamic_cast<const VariableNode*>(node.value.get())) {
+            markAsMoved(varNode->name);
+        }
+    }
+
     if (!declareVariable(node.variableName, varType, node.isMutable))
         throw std::runtime_error("Variable already declared: " + node.variableName + " at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
 }
@@ -129,6 +145,7 @@ void SemanticAnalyzer::visit(const ArrayAccessNode& node)
 {
     auto var = lookupVariable(node.name);
     if (!var) throw std::runtime_error("Undefined variable: " + node.name + " at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
+    validateNotMoved(node.name, node.line, node.column);
     if (var->get().type != VarType::ARRAY)
         throw std::runtime_error("'" + node.name + "' is not an array at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
 
@@ -144,6 +161,7 @@ void SemanticAnalyzer::visit(const ArrayAssignNode& node)
 {
     auto var = lookupVariable(node.name);
     if (!var) throw std::runtime_error("Undefined variable: " + node.name + " at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
+    validateNotMoved(node.name, node.line, node.column);
     if (var->get().type != VarType::ARRAY)
         throw std::runtime_error("'" + node.name + "' is not an array at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
     if (!var->get().mutableFlag)
@@ -328,13 +346,14 @@ void SemanticAnalyzer::visit(const FunctionNode& node)
     FunctionInfo info;
     for (auto& p : node.parameters) {
         ParamInfo pi;
-        pi.isArray  = p.isArray;
+        pi.isArray    = p.isArray;
+        pi.borrowType = p.borrowType;
         if (p.isArray) {
             pi.varType  = VarType::ARRAY;
             pi.elemType = stringToVarType(p.type);
         } else {
             pi.varType  = stringToVarType(p.type);
-            pi.elemType = VarType::INT; // irrelevant for scalars
+            pi.elemType = VarType::INT;
         }
         info.params.push_back(pi);
     }
@@ -410,13 +429,31 @@ void SemanticAnalyzer::visit(const CallNode& node)
                     "Array element type mismatch for argument " +
                     std::to_string(i + 1) + " in call to '" + node.functionName + "'");
         } else {
-            if (m_currentType == pi.varType)
-                continue;
-            if (pi.varType == VarType::FLOAT && m_currentType == VarType::INT)
-                continue;
-            throw std::runtime_error(
-                    "Type mismatch for argument " + std::to_string(i + 1) +
-                    " in call to '" + node.functionName + "'");
+            if (m_currentType != pi.varType) {
+                if (pi.varType == VarType::FLOAT && m_currentType == VarType::INT) {
+                    // ok: implicit int->float
+                } else {
+                    throw std::runtime_error(
+                        "Type mismatch for argument " + std::to_string(i + 1) +
+                        " in call to '" + node.functionName + "'");
+                }
+            }
+        }
+
+        // Ownership: if heap type arg passed by value (no borrow) → move
+        if (isHeapType(m_currentType) && pi.borrowType.empty()) {
+            if (auto* varNode = dynamic_cast<const VariableNode*>(node.arguments[i].get())) {
+                validateNotMoved(varNode->name, node.line, node.column);
+                markAsMoved(varNode->name);
+            }
+        }
+        // Borrow at call site
+        if (!pi.borrowType.empty()) {
+            if (auto* varNode = dynamic_cast<const VariableNode*>(node.arguments[i].get())) {
+                OwnershipState bs = (pi.borrowType == "mut") ? OwnershipState::BORROWED_MUT : OwnershipState::BORROWED_IMM;
+                validateCanBorrow(varNode->name, bs, node.line, node.column);
+                markAsBorrowed(varNode->name, bs);
+            }
         }
     }
 
@@ -570,4 +607,39 @@ void SemanticAnalyzer::clearBorrows(const std::string& varName)
             var->get().ownershipState = OwnershipState::OWNED;
         }
     }
+}
+
+void SemanticAnalyzer::visit(const BorrowNode& node)
+{
+    auto var = lookupVariable(node.name);
+    if (!var)
+        throw std::runtime_error("Undefined variable: '" + node.name + "' at line " +
+                                 std::to_string(node.line) + ", column " + std::to_string(node.column));
+    validateNotMoved(node.name, node.line, node.column);
+
+    OwnershipState bs = node.isMutable ? OwnershipState::BORROWED_MUT : OwnershipState::BORROWED_IMM;
+    validateCanBorrow(node.name, bs, node.line, node.column);
+    markAsBorrowed(node.name, bs);
+
+    // The type of &T / &mut T is still T from our type system perspective
+    m_currentType = var->get().type;
+    if (m_currentType == VarType::ARRAY)
+        m_currentElementType = var->get().elementType;
+}
+
+void SemanticAnalyzer::visit(const CopyNode& node)
+{
+    auto var = lookupVariable(node.name);
+    if (!var)
+        throw std::runtime_error("Undefined variable: '" + node.name + "' at line " +
+                                 std::to_string(node.line) + ", column " + std::to_string(node.column));
+    validateNotMoved(node.name, node.line, node.column);
+
+    if (!var->get().isHeapType())
+        throw std::runtime_error("copy() is for heap types (string/array). Use direct assignment for stack types at line " +
+                                 std::to_string(node.line));
+
+    m_currentType = var->get().type;
+    if (m_currentType == VarType::ARRAY)
+        m_currentElementType = var->get().elementType;
 }

@@ -145,3 +145,15 @@ void CodeGenerator::writeIRToFile(const std::string& filename)
     if (EC) throw std::runtime_error("Failed to open IR output file");
     m_module.print(file, nullptr);
 }
+
+void CodeGenerator::setArraySize(const std::string& name, int size)
+{
+    m_arraySizes[name] = size;
+}
+
+int CodeGenerator::getArraySize(const std::string& name)
+{
+    auto it = m_arraySizes.find(name);
+    if (it != m_arraySizes.end()) return it->second;
+    return -1;
+}

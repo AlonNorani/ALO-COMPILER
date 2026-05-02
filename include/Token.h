@@ -68,6 +68,8 @@ enum class TokenType
     INPUT_MACRO,
 
     RANGE,
+    AMP,        // &
+    AMP_MUT,    // &mut (parsed as single token conceptually)
 };
 
 const std::string operators  = "+-*/=<>!&|.";
@@ -107,6 +109,7 @@ static std::unordered_map<char, TokenType> singleCharOperatorTokens = {
     {'<', TokenType::LESS},
     {'>', TokenType::GREATER},
     {'!', TokenType::NOT},
+    {'&', TokenType::AMP},
 };
 
 static std::unordered_map<std::string, TokenType> doubleCharOperatorTokens = {

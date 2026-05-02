@@ -375,6 +375,54 @@ void CodeGenVisitor::visit(const LetNode& node)
             size = static_cast<int>(lit->elements.size());
         }
 
+        // Check if initializer is copy(arr) — inline the logic to avoid vtable dispatch issues
+        auto* copyNode = node.value ? dynamic_cast<const CopyNode*>(node.value.get()) : nullptr;
+
+        if (copyNode) {
+            // Lookup source array's heap pointer
+            llvm::AllocaInst* srcAlloc = m_cg.lookupVariable(copyNode->name);
+            if (!srcAlloc) throw std::runtime_error("Unknown variable in copy(): " + copyNode->name);
+
+            int srcSize = m_cg.getArraySize(copyNode->name);
+            if (srcSize <= 0) srcSize = size; // fallback to declared size
+
+            uint64_t elemBytes = elemLLVM->isDoubleTy() ? 8 : 4;
+            uint64_t totalSz   = (uint64_t)srcSize * elemBytes;
+
+            // Load the src heap pointer (alloca holds ptr->elem)
+            llvm::Value* srcPtr = builder.CreateLoad(
+                llvm::PointerType::getUnqual(elemLLVM), srcAlloc, copyNode->name + "_src");
+
+            // malloc + memcpy
+            llvm::Function* mallocFunc = m_cg.getModule().getFunction("malloc");
+            if (!mallocFunc) {
+                llvm::FunctionType* ft = llvm::FunctionType::get(
+                    llvm::PointerType::getUnqual(m_cg.getContext()), {builder.getInt64Ty()}, false);
+                mallocFunc = llvm::Function::Create(ft, llvm::Function::ExternalLinkage, "malloc", m_cg.getModule());
+            }
+            llvm::Function* memcpyFunc = m_cg.getModule().getFunction("memcpy");
+            if (!memcpyFunc) {
+                llvm::FunctionType* ft = llvm::FunctionType::get(
+                    llvm::PointerType::getUnqual(m_cg.getContext()),
+                    {llvm::PointerType::getUnqual(m_cg.getContext()),
+                     llvm::PointerType::getUnqual(m_cg.getContext()),
+                     builder.getInt64Ty()}, false);
+                memcpyFunc = llvm::Function::Create(ft, llvm::Function::ExternalLinkage, "memcpy", m_cg.getModule());
+            }
+
+            llvm::Value* sizeVal  = llvm::ConstantInt::get(builder.getInt64Ty(), totalSz);
+            llvm::Value* heapPtr  = builder.CreateCall(mallocFunc, {sizeVal}, "arraycopy");
+            builder.CreateCall(memcpyFunc, {heapPtr, srcPtr, sizeVal});
+
+            llvm::Value* heapArray = builder.CreateBitCast(heapPtr, llvm::PointerType::getUnqual(elemLLVM));
+            llvm::AllocaInst* stackPtr = m_cg.createEntryBlockAlloca(func, node.variableName, llvm::PointerType::getUnqual(elemLLVM));
+            builder.CreateStore(heapArray, stackPtr);
+            m_cg.declareVariable(node.variableName, stackPtr);
+            m_cg.setArrayElementType(node.variableName, elemLLVM);
+            m_cg.setArraySize(node.variableName, srcSize);
+            return;
+        }
+
         // Allocate array on the heap
         llvm::Function* mallocFunc = m_cg.getModule().getFunction("malloc");
         if (!mallocFunc) {
@@ -386,15 +434,12 @@ void CodeGenVisitor::visit(const LetNode& node)
             mallocFunc = llvm::Function::Create(mallocType, llvm::Function::ExternalLinkage, "malloc", m_cg.getModule());
         }
 
-        // Calculate total size: size * element_type_size
-        llvm::Value* elemSize = llvm::ConstantInt::get(builder.getInt64Ty(), 
-            m_cg.getModule().getDataLayout().getTypeAllocSize(elemLLVM));
-        llvm::Value* arraySize = llvm::ConstantInt::get(builder.getInt64Ty(), size);
-        llvm::Value* totalSize = builder.CreateMul(elemSize, arraySize);
+        // Manual element size: double=8, otherwise 4
+        uint64_t elemBytes = elemLLVM->isDoubleTy() ? 8 : 4;
+        llvm::Value* totalSize = llvm::ConstantInt::get(builder.getInt64Ty(), (uint64_t)size * elemBytes);
 
         // Call malloc
         llvm::Value* heapPtr = builder.CreateCall(mallocFunc, {totalSize});
-        llvm::Type* elemPtrTy = llvm::PointerType::getUnqual(m_cg.getContext());
         llvm::Value* heapArray = builder.CreateBitCast(heapPtr, llvm::PointerType::getUnqual(elemLLVM));
 
         // Allocate pointer on stack to hold heap reference
@@ -402,6 +447,7 @@ void CodeGenVisitor::visit(const LetNode& node)
         builder.CreateStore(heapArray, stackPtr);
         m_cg.declareVariable(node.variableName, stackPtr);
         m_cg.setArrayElementType(node.variableName, elemLLVM);
+        m_cg.setArraySize(node.variableName, size);
 
         if (node.value) {
             auto* lit = dynamic_cast<const ArrayLiteralNode*>(node.value.get());
@@ -419,7 +465,51 @@ void CodeGenVisitor::visit(const LetNode& node)
         return;
     }
 
-    // Scalar
+    // Handle unannotated array literal: let arr = [1,2,3]
+    // The annotated path above only fires when node.hasTypeAnnotation && node.isArray.
+    // Without annotation we detect an ArrayLiteralNode here and handle it fully.
+    if (auto* lit = dynamic_cast<const ArrayLiteralNode*>(node.value.get())) {
+        if (lit->elements.empty()) throw std::runtime_error("Empty array literal");
+        lit->elements[0]->accept(*this);
+        VarType elemVarType = m_lastVarType;
+        llvm::Type* elemLLVM = varTypeToLLVM(elemVarType);
+        int size = static_cast<int>(lit->elements.size());
+
+        llvm::Function* mallocFunc = m_cg.getModule().getFunction("malloc");
+        if (!mallocFunc) {
+            llvm::FunctionType* ft = llvm::FunctionType::get(
+                llvm::PointerType::getUnqual(m_cg.getContext()), {builder.getInt64Ty()}, false);
+            mallocFunc = llvm::Function::Create(ft, llvm::Function::ExternalLinkage, "malloc", m_cg.getModule());
+        }
+        uint64_t elemBytes = elemLLVM->isDoubleTy() ? 8 : 4;
+        llvm::Value* totalSize = llvm::ConstantInt::get(builder.getInt64Ty(), (uint64_t)size * elemBytes);
+        llvm::Value* heapPtr   = builder.CreateCall(mallocFunc, {totalSize});
+        llvm::Value* heapArray = builder.CreateBitCast(heapPtr, llvm::PointerType::getUnqual(elemLLVM));
+
+        llvm::AllocaInst* stackPtr = m_cg.createEntryBlockAlloca(func, node.variableName, llvm::PointerType::getUnqual(elemLLVM));
+        builder.CreateStore(heapArray, stackPtr);
+        m_cg.declareVariable(node.variableName, stackPtr);
+        m_cg.setArrayElementType(node.variableName, elemLLVM);
+        m_cg.setArraySize(node.variableName, size);
+
+        for (int i = 0; i < size; i++) {
+            lit->elements[i]->accept(*this);
+            llvm::Value* elem = m_lastValue;
+            if (elemLLVM->isDoubleTy() && m_lastVarType == VarType::INT)
+                elem = builder.CreateSIToFP(elem, builder.getDoubleTy(), "int2float");
+            llvm::Value* idx = llvm::ConstantInt::get(builder.getInt64Ty(), i);
+            llvm::Value* ptr = builder.CreateGEP(elemLLVM, heapArray, {idx});
+            builder.CreateStore(elem, ptr);
+        }
+        return;
+    }
+
+    // Scalar (or unannotated array/string move)
+    // Detect if RHS is a variable so we can propagate array metadata for moves
+    std::string rhsVarName;
+    if (auto* varNode = dynamic_cast<const VariableNode*>(node.value.get()))
+        rhsVarName = varNode->name;
+
     node.value->accept(*this);
     llvm::Value*      val    = m_lastValue;
     llvm::Type*       allocTy = val->getType();
@@ -434,6 +524,17 @@ void CodeGenVisitor::visit(const LetNode& node)
     llvm::AllocaInst* alloc  = m_cg.createEntryBlockAlloca(func, node.variableName, allocTy);
     builder.CreateStore(val, alloc);
     m_cg.declareVariable(node.variableName, alloc);
+
+    // Propagate array element type and size metadata for unannotated array moves/copies
+    // e.g. let arr2 = arr1  (no type annotation)
+    if (!rhsVarName.empty()) {
+        llvm::Type* srcElemTy = m_cg.getArrayElementType(rhsVarName);
+        int         srcSize   = m_cg.getArraySize(rhsVarName);
+        if (srcElemTy) {
+            m_cg.setArrayElementType(node.variableName, srcElemTy);
+            m_cg.setArraySize(node.variableName, srcSize);
+        }
+    }
 }
 
 
@@ -634,8 +735,10 @@ void CodeGenVisitor::visit(const ForNode& node)
         // Iterate over array values
         llvm::AllocaInst* arrayAlloc = nullptr;
         llvm::Type* arrayElemTy = nullptr;
+        std::string arrayVarName;
 
         if (auto* varNode = dynamic_cast<const VariableNode*>(node.iterable.get())) {
+            arrayVarName = varNode->name;
             arrayAlloc = m_cg.lookupVariable(varNode->name);
             if (arrayAlloc)
                 arrayElemTy = m_cg.getArrayElementType(varNode->name);
@@ -654,8 +757,10 @@ void CodeGenVisitor::visit(const ForNode& node)
             lengthValue = llvm::ConstantInt::get(builder.getInt32Ty(),
                                                 allocatedTy->getArrayNumElements());
         } else if (allocatedTy->isPointerTy()) {
-            (void)arrayAlloc;
-            throw std::runtime_error("For loops over parameter arrays are not supported at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
+            // Heap-allocated array: load the heap pointer and get size from metadata
+            startPtr = builder.CreateLoad(llvm::PointerType::getUnqual(arrayElemTy), arrayAlloc, "arraystart");
+            int arraySize = m_cg.getArraySize(arrayVarName);
+            lengthValue = llvm::ConstantInt::get(builder.getInt32Ty(), arraySize);
         } else {
             throw std::runtime_error("Unsupported array iterable in for loop at line " + std::to_string(node.line) + ", column " + std::to_string(node.column));
         }
@@ -981,4 +1086,78 @@ VarType CodeGenVisitor::stringToVarType(const std::string& s)
     if (s == "bool")   return VarType::BOOL;
     if (s == "void")   return VarType::VOID;
     throw std::runtime_error("Unknown type: " + s);
+}
+
+// BorrowNode: &a or &mut a — in LLVM IR we just load the value (pointer semantics handled by semantic layer)
+// Since our codegen uses alloca-based variables, a "borrow" just reads from the same alloca.
+void CodeGenVisitor::visit(const BorrowNode& node)
+{
+    // Borrow = load the value from the variable (same as VariableNode)
+    // The ownership rules are enforced by the semantic analyzer; codegen just reads.
+    m_lastValue   = m_cg.loadVariable(node.name);
+    m_lastVarType = llvmTypeToVarType(m_lastValue->getType());
+}
+
+// CopyNode: copy(a) — deep copy for heap types (string/array)
+void CodeGenVisitor::visit(const CopyNode& node)
+{
+    auto& builder = m_cg.getBuilder();
+    auto& mod     = m_cg.getModule();
+    auto& ctx     = m_cg.getContext();
+
+    llvm::AllocaInst* srcAlloc = m_cg.lookupVariable(node.name);
+    if (!srcAlloc) throw std::runtime_error("Unknown variable in copy(): " + node.name);
+
+    llvm::Type* allocTy = srcAlloc->getAllocatedType();
+
+    if (allocTy->isPointerTy()) {
+        // String copy: strdup(src)
+        llvm::Function* strdupFunc = mod.getFunction("strdup");
+        if (!strdupFunc) {
+            llvm::FunctionType* ft = llvm::FunctionType::get(
+                llvm::PointerType::getUnqual(ctx),
+                {llvm::PointerType::getUnqual(ctx)},
+                false);
+            strdupFunc = llvm::Function::Create(ft, llvm::Function::ExternalLinkage, "strdup", mod);
+        }
+        llvm::Value* srcVal = builder.CreateLoad(allocTy, srcAlloc, node.name);
+        m_lastValue   = builder.CreateCall(strdupFunc, {srcVal}, "strcopy");
+        m_lastVarType = VarType::STRING;
+    } else if (allocTy->isArrayTy()) {
+        // Array copy: allocate new array on heap via malloc + memcpy
+        llvm::ArrayType* arrTy   = llvm::cast<llvm::ArrayType>(allocTy);
+        uint64_t         numElems = arrTy->getNumElements();
+        llvm::Type*      elemTy  = arrTy->getElementType();
+        uint64_t elemSz = elemTy->isDoubleTy() ? 8 : 4;
+        uint64_t         totalSz = numElems * elemSz;
+
+        llvm::Function* mallocFunc = mod.getFunction("malloc");
+        if (!mallocFunc) {
+            llvm::FunctionType* ft = llvm::FunctionType::get(
+                llvm::PointerType::getUnqual(ctx), {builder.getInt64Ty()}, false);
+            mallocFunc = llvm::Function::Create(ft, llvm::Function::ExternalLinkage, "malloc", mod);
+        }
+        llvm::Function* memcpyFunc = mod.getFunction("memcpy");
+        if (!memcpyFunc) {
+            llvm::FunctionType* ft = llvm::FunctionType::get(
+                llvm::PointerType::getUnqual(ctx),
+                {llvm::PointerType::getUnqual(ctx), llvm::PointerType::getUnqual(ctx), builder.getInt64Ty()},
+                false);
+            memcpyFunc = llvm::Function::Create(ft, llvm::Function::ExternalLinkage, "memcpy", mod);
+        }
+
+        llvm::Value* sizeVal  = llvm::ConstantInt::get(builder.getInt64Ty(), totalSz);
+        llvm::Value* heapPtr  = builder.CreateCall(mallocFunc, {sizeVal}, "arraycopy");
+        // GEP to get pointer to the start of the source array
+        llvm::Value* zero    = llvm::ConstantInt::get(builder.getInt32Ty(), 0);
+        llvm::Value* srcPtr  = builder.CreateInBoundsGEP(allocTy, srcAlloc, {zero, zero}, "srcptr");
+        builder.CreateCall(memcpyFunc, {heapPtr, srcPtr, sizeVal});
+
+        m_lastValue   = heapPtr;
+        m_lastVarType = VarType::ARRAY;
+    } else {
+        // Scalar: just load (copy by value)
+        m_lastValue   = builder.CreateLoad(allocTy, srcAlloc, node.name);
+        m_lastVarType = llvmTypeToVarType(m_lastValue->getType());
+    }
 }

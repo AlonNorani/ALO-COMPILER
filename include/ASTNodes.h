@@ -459,4 +459,27 @@ struct ArrayAssignNode : ASTNode {
     }
 };
 
+// Borrow expression: &a (immutable) or &mut a (mutable)
+struct BorrowNode : ASTNode {
+    std::string name;
+    bool isMutable; // false = &a, true = &mut a
+    BorrowNode(const std::string& n, bool mut, int l, int c)
+        : ASTNode(l, c), name(n), isMutable(mut) {}
+    ACCEPT_VISITOR
+    void print(int indent = 0) const override {
+        std::cout << std::string(indent, ' ')
+                  << (isMutable ? "&mut " : "&") << name << "\n";
+    }
+};
+
+// Deep copy: copy(a)
+struct CopyNode : ASTNode {
+    std::string name;
+    CopyNode(const std::string& n, int l, int c) : ASTNode(l, c), name(n) {}
+    ACCEPT_VISITOR
+    void print(int indent = 0) const override {
+        std::cout << std::string(indent, ' ') << "copy(" << name << ")\n";
+    }
+};
+
 #endif

@@ -232,6 +232,15 @@ std::unique_ptr<ASTNode> Parser::parseFactor()
         expect(TokenType::RPAREN, "Expected ')'");
         return std::make_unique<InputNode>(line, col);
     }
+    if (currentToken.type == TokenType::AMP) {
+        int line = currentToken.line; int col = currentToken.column; advance();
+        bool isMut = false;
+        if (currentToken.type == TokenType::MUT) { isMut = true; advance(); }
+        if (currentToken.type != TokenType::IDENTIFIER)
+            throw std::runtime_error("Expected variable name after '&'");
+        std::string name = currentToken.lexeme; advance();
+        return std::make_unique<BorrowNode>(name, isMut, line, col);
+    }
     if (currentToken.type == TokenType::NUMBER) {
         const std::string lexeme = currentToken.lexeme; int line = currentToken.line; int col = currentToken.column;
         if (lexeme.find('.') != std::string::npos) {
@@ -249,6 +258,15 @@ std::unique_ptr<ASTNode> Parser::parseFactor()
     }
     if (currentToken.type == TokenType::IDENTIFIER) {
         std::string name = currentToken.lexeme; int line = currentToken.line; int col = currentToken.column; advance();
+        // copy(varName) — deep copy for heap types
+        if (name == "copy" && currentToken.type == TokenType::LPAREN) {
+            advance();
+            if (currentToken.type != TokenType::IDENTIFIER)
+                throw std::runtime_error("Expected variable name in copy()");
+            std::string copyName = currentToken.lexeme; advance();
+            expect(TokenType::RPAREN, "Expected ')'");
+            return std::make_unique<CopyNode>(copyName, line, col);
+        }
         if (currentToken.type == TokenType::LPAREN) {
             advance();
             std::vector<std::unique_ptr<ASTNode>> args;
@@ -386,6 +404,17 @@ std::vector<Parameter> Parser::parseParameterList()
         advance();
 
         expect(TokenType::COLON, "Expected ':' after parameter name");
+
+        // Check for borrow prefix: & or &mut
+        if (currentToken.type == TokenType::AMP) {
+            advance();
+            if (currentToken.type == TokenType::MUT) {
+                p.borrowType = "mut";
+                advance();
+            } else {
+                p.borrowType = "imm";
+            }
+        }
 
         p.type = parseType(); // "int", "bool", "string", …
 

@@ -39,6 +39,8 @@ public:
     void visit(const ArrayAssignNode&  node) override;
     void visit(const ForNode&          node) override;
     void visit(const InputNode&        node) override;
+    void visit(const BorrowNode&       node) override;
+    void visit(const CopyNode&         node) override;
 
 
 private:
